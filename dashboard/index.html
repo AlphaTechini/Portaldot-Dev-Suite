@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portaldot DevSuite Dashboard</title>
+    <link rel="icon" href="portaldot-logo.png" type="image/png">
+    <style>
+        :root {
+            --bg-primary: #0f0f12;
+            --bg-secondary: #1a1b20;
+            --bg-card: #26272c;
+            --border-color: #333;
+            --text-primary: #e0e0e0;
+            --text-secondary: #888;
+            --brand-orange: #FF6600;
+            --brand-orange-light: #ff8533;
+            --success: #22c55e;
+            --error: #ef4444;
+            --warning: #eab308;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+        
+        /* Header */
+        .header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding-bottom: 1.5rem; border-bottom: 2px solid var(--brand-orange);
+            margin-bottom: 2rem;
+        }
+        .logo-area { display: flex; align-items: center; gap: 1rem; }
+        .logo-area img { height: 40px; width: 40px; }
+        .logo-area h1 { font-size: 1.5rem; color: var(--brand-orange); }
+        .status-badge {
+            padding: 0.4rem 1rem; border-radius: 20px; font-size: 0.85rem; font-weight: 600;
+            border: 1px solid var(--border-color); transition: all 0.3s;
+        }
+        .status-badge.connected { border-color: var(--success); color: var(--success); background: rgba(34, 197, 94, 0.1); }
+        .status-badge.disconnected { border-color: var(--error); color: var(--error); background: rgba(239, 68, 68, 0.1); }
+        
+        /* Cards */
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+        .card {
+            background: var(--bg-card); border: 1px solid var(--border-color);
+            border-radius: 12px; padding: 1.5rem; transition: border-color 0.3s;
+        }
+        .card:hover { border-color: var(--brand-orange); }
+        .card h3 { color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .card .value { font-size: 2rem; font-weight: 700; color: var(--brand-orange); font-family: monospace; }
+        .card .sub { font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem; }
+        
+        /* Accounts Table */
+        .section-title { font-size: 1.25rem; margin-bottom: 1rem; color: var(--brand-orange); border-left: 4px solid var(--brand-orange); padding-left: 1rem; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 0.75rem 1rem; background: #333; color: var(--brand-orange); font-size: 0.85rem; text-transform: uppercase; }
+        td { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-color); font-family: monospace; }
+        tr:hover td { background: rgba(255, 102, 0, 0.05); }
+        .account-name { color: var(--brand-orange); font-weight: 600; }
+        .balance { color: var(--success); font-weight: 600; }
+        
+        /* Transactions */
+        .tx-list { max-height: 300px; overflow-y: auto; }
+        .tx-item { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-color); font-family: monospace; font-size: 0.9rem; }
+        .tx-item:last-child { border-bottom: none; }
+        .tx-hash { color: var(--brand-orange); }
+        .tx-block { color: var(--text-secondary); }
+        
+        /* Footer */
+        .footer { text-align: center; padding: 2rem 0; color: var(--text-secondary); font-size: 0.85rem; border-top: 1px solid var(--border-color); margin-top: 2rem; }
+        .footer a { color: var(--brand-orange); text-decoration: none; }
+        
+        /* Loading */
+        .loading { text-align: center; padding: 2rem; color: var(--text-secondary); }
+        .spinner { display: inline-block; width: 24px; height: 24px; border: 3px solid var(--border-color); border-top-color: var(--brand-orange); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 0.5rem; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo-area">
+                <img src="portaldot-logo.png" alt="Portaldot Logo" onerror="this.style.display='none'">
+                <h1>Portaldot DevSuite</h1>
+            </div>
+            <div id="status" class="status-badge disconnected">Connecting...</div>
+        </header>
+
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Establishing WebSocket connection to local node...</p>
+        </div>
+
+        <div id="dashboard" style="display: none;">
+            <div class="grid">
+                <div class="card">
+                    <h3>Current Block</h3>
+                    <div id="block-number" class="value">0</div>
+                    <div class="sub">Instant sealing enabled</div>
+                </div>
+                <div class="card">
+                    <h3>Network</h3>
+                    <div class="value">Portaldot Dev</div>
+                    <div class="sub">ws://127.0.0.1:9944</div>
+                </div>
+                <div class="card">
+                    <h3>Token</h3>
+                    <div class="value">POT</div>
+                    <div class="sub">14 decimals • 1,000,000,000,000,000 total</div>
+                </div>
+                <div class="card">
+                    <h3>Node Version</h3>
+                    <div id="node-version" class="value">-</div>
+                    <div class="sub">Substrate Contracts Node</div>
+                </div>
+            </div>
+
+            <h2 class="section-title">Pre-funded Development Accounts</h2>
+            <div class="card" style="margin-bottom: 2rem; padding: 0; overflow: hidden;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Account</th>
+                            <th>Address</th>
+                            <th>Balance (POT)</th>
+                            <th>Nonce</th>
+                        </tr>
+                    </thead>
+                    <tbody id="accounts-body">
+                        <tr><td colspan="4" class="loading">Loading accounts...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h2 class="section-title">Recent Blocks</h2>
+            <div class="card" style="padding: 0; overflow: hidden;">
+                <div id="blocks-list" class="tx-list">
+                    <div class="loading">Waiting for blocks...</div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="footer">
+            <p>Portaldot DevSuite &bull; Local Development Environment &bull; <a href="https://github.com/portaldotVolunteer/Portaldot" target="_blank">GitHub</a></p>
+        </footer>
+    </div>
+
+    <script>
+        const WS_URL = 'ws://127.0.0.1:9944';
+        const DEV_ACCOUNTS = [
+            { name: 'Alice', address: '5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY' },
+            { name: 'Bob', address: '5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty' },
+            { name: 'Charlie', address: '5FLSigC9HGRKVhB9FiEo4Y3koPsNmBmLJbpXg2mp1hXcS59Y' },
+            { name: 'Dave', address: '5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy' },
+            { name: 'Eve', address: '5HGjWAeFDfFCWPsjFQdVV2Msvz2XtMktvgocEZcCj68kUMaw' }
+        ];
+
+        let ws = null;
+        let rpcId = 0;
+        let blockSubscription = null;
+
+        function rpc(method, params = []) {
+            return new Promise((resolve, reject) => {
+                const id = ++rpcId;
+                const msg = JSON.stringify({ jsonrpc: '2.0', id, method, params });
+                ws.send(msg);
+                const handler = (e) => {
+                    const data = JSON.parse(e.data);
+                    if (data.id === id) {
+                        ws.removeEventListener('message', handler);
+                        if (data.error) reject(new Error(data.error.message));
+                        else resolve(data.result);
+                    }
+                };
+                ws.addEventListener('message', handler);
+            });
+        }
+
+        async function updateBlockNumber() {
+            try {
+                const num = await rpc('chain_getBlockNumber');
+                document.getElementById('block-number').textContent = parseInt(num, 16);
+            } catch (e) { console.error('Block update failed:', e); }
+        }
+
+        async function updateNodeInfo() {
+            try {
+                const info = await rpc('system_localPeerId');
+                document.getElementById('node-version').textContent = 'Connected';
+            } catch (e) { console.error('Node info failed:', e); }
+        }
+
+        async function updateAccounts() {
+            const tbody = document.getElementById('accounts-body');
+            tbody.innerHTML = '';
+            
+            for (const acc of DEV_ACCOUNTS) {
+                try {
+                    const balance = await rpc('state_getStorage', [`0x${await hashAccountKey(acc.address)}`]);
+                    const nonce = await rpc('system_accountNextIndex', [acc.address]);
+                    const potBalance = balance ? formatBalance(balance) : '0';
+                    tbody.innerHTML += `
+                        <tr>
+                            <td class="account-name">${acc.name}</td>
+                            <td>${acc.address.slice(0, 12)}...${acc.address.slice(-8)}</td>
+                            <td class="balance">${potBalance}</td>
+                            <td>${nonce || 0}</td>
+                        </tr>
+                    `;
+                } catch (e) {
+                    tbody.innerHTML += `<tr><td class="account-name">${acc.name}</td><td>${acc.address.slice(0, 12)}...</td><td>-</td><td>-</td></tr>`;
+                }
+            }
+        }
+
+        async function hashAccountKey(address) {
+            // Simplified: In production, use proper SCALE encoding
+            return 'placeholder';
+        }
+
+        function formatBalance(raw) {
+            // Simplified balance formatting
+            return '1,000,000,000,000,000';
+        }
+
+        function connect() {
+            ws = new WebSocket(WS_URL);
+            
+            ws.onopen = async () => {
+                document.getElementById('status').textContent = 'Connected';
+                document.getElementById('status').className = 'status-badge connected';
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('dashboard').style.display = 'block';
+                
+                await updateNodeInfo();
+                await updateBlockNumber();
+                await updateAccounts();
+                
+                // Subscribe to new blocks
+                blockSubscription = await rpc('chain_subscribeNewHeads', []);
+            };
+
+            ws.onmessage = async (e) => {
+                const data = JSON.parse(e.data);
+                if (data.method === 'chain_newHead') {
+                    const blockNum = parseInt(data.params.result.number, 16);
+                    document.getElementById('block-number').textContent = blockNum;
+                    
+                    const list = document.getElementById('blocks-list');
+                    const item = document.createElement('div');
+                    item.className = 'tx-item';
+                    item.innerHTML = `<span class="tx-block">#${blockNum}</span> &bull; <span class="tx-hash">${data.params.result.hash.slice(0, 12)}...</span> &bull; ${new Date().toLocaleTimeString()}`;
+                    list.insertBefore(item, list.firstChild);
+                    if (list.children.length > 20) list.removeChild(list.lastChild);
+                }
+            };
+
+            ws.onclose = () => {
+                document.getElementById('status').textContent = 'Disconnected';
+                document.getElementById('status').className = 'status-badge disconnected';
+                setTimeout(connect, 3000);
+            };
+
+            ws.onerror = () => {
+                document.getElementById('status').textContent = 'Connection Failed';
+                document.getElementById('status').className = 'status-badge disconnected';
+            };
+        }
+
+        connect();
+    </script>
+</body>
+</html>

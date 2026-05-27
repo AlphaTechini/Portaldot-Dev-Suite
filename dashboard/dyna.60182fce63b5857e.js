@@ -1,0 +1,1 @@
+"use strict";(("undefined"!=typeof self?self:this).webpackChunk_Portaldot_apps=("undefined"!=typeof self?self:this).webpackChunk_Portaldot_apps||[]).push([[8570],{68570:(e,p,s)=>{s.r(p)}}]);
