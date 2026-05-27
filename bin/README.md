@@ -20,12 +20,19 @@ bin/
 4. Strip the binary: `strip portaldot-node`
 5. Copy to the matching `bin/<platform>/` directory
 
+## Auto-download
+
 The CLI scripts (`devsuite.sh` / `devsuite.ps1`) auto-detect the host OS and select the correct binary.
+If the binary is missing, it will be downloaded automatically from the upstream release:
+
+- Source: `https://github.com/paritytech/substrate-contracts-node/releases/download/v0.9.0/`
+
+Binaries are gitignored — they live locally but are not committed to the repository.
 
 ## Expected binary name
 
-- Linux/macOS: `portaldot-node`
-- Windows: `portaldot-node.exe`
+- Linux/macOS: `polkadot`
+- Windows: `polkadot.exe`
 
 ## Launch flags used by the DevSuite
 

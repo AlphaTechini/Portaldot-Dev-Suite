@@ -1,0 +1,23 @@
+# Compiled node binaries (downloaded on first run)
+bin/linux-x64/
+bin/macos-arm64/
+bin/macos-x64/
+bin/windows-x64/
+
+# Chain state and logs
+.state/
+.pids/
+
+# Environment
+.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Node
+node_modules/

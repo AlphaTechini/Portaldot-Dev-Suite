@@ -11,6 +11,14 @@ STATE_DIR="$SCRIPT_DIR/.state"
 NODE_PORT=9944
 DASHBOARD_PORT=3000
 
+RELEASE_BASE="https://github.com/paritytech/substrate-contracts-node/releases/download/v0.9.0"
+
+declare -A RELEASE_URLS=(
+    ["linux-x64"]="${RELEASE_BASE}/substrate-contracts-node-linux.tar.gz"
+    ["macos-x64"]="${RELEASE_BASE}/substrate-contracts-node-mac.tar.gz"
+    ["macos-arm64"]="${RELEASE_BASE}/substrate-contracts-node-mac.tar.gz"
+)
+
 detect_os() {
     case "$(uname -s)" in
         Linux*)  echo "linux-x64" ;;
@@ -24,6 +32,52 @@ detect_os() {
     esac
 }
 
+download_binary() {
+    local platform="$1"
+    local release_url="${RELEASE_URLS[$platform]:-}"
+
+    if [[ -z "$release_url" ]]; then
+        echo "Error: No pre-built binary available for $platform." >&2
+        echo "Build from source and place it in: $BIN_DIR/$platform/" >&2
+        exit 1
+    fi
+
+    local platform_dir="$BIN_DIR/$platform"
+    mkdir -p "$platform_dir"
+
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    local archive="$tmp_dir/node.tar.gz"
+
+    echo "Downloading node binary for $platform..."
+    if command -v curl &>/dev/null; then
+        curl -fSL --progress-bar "$release_url" -o "$archive"
+    elif command -v wget &>/dev/null; then
+        wget -q --show-progress -O "$archive" "$release_url"
+    else
+        echo "Error: curl or wget required for download." >&2
+        exit 1
+    fi
+
+    echo "Extracting..."
+    tar -xzf "$archive" -C "$tmp_dir"
+
+    local extracted_name
+    extracted_name=$(find "$tmp_dir" -maxdepth 1 -type f -executable | head -n1 | xargs basename)
+
+    if [[ -z "$extracted_name" ]]; then
+        echo "Error: Failed to extract executable from archive." >&2
+        rm -rf "$tmp_dir"
+        exit 1
+    fi
+
+    mv "$tmp_dir/$extracted_name" "$platform_dir/polkadot"
+    chmod +x "$platform_dir/polkadot"
+    rm -rf "$tmp_dir"
+
+    echo "Binary installed to $platform_dir/polkadot"
+}
+
 find_binary() {
     local platform
     platform="$(detect_os)"
@@ -31,12 +85,15 @@ find_binary() {
         echo "Error: Unsupported operating system." >&2
         exit 1
     fi
+
     local bin_path="$BIN_DIR/$platform/polkadot"
     if [[ ! -f "$bin_path" ]]; then
-        bin_path="$BIN_DIR/$platform/portaldot-node"
+        download_binary "$platform"
+        bin_path="$BIN_DIR/$platform/polkadot"
     fi
+
     if [[ ! -f "$bin_path" ]]; then
-        echo "Error: Node binary not found at $BIN_DIR/$platform/polkadot" >&2
+        echo "Error: Node binary not found at $bin_path" >&2
         echo "Place the compiled node binary in: $BIN_DIR/$platform/" >&2
         exit 1
     fi
