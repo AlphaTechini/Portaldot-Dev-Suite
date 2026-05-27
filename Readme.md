@@ -29,15 +29,22 @@ See [structure.md](structure.md) for the complete project layout.
 
 ## Quick Start
 
-To initialize the entire development infrastructure locally, execute the following commands within your terminal environment:
+No manual binary management or complex toolchains required. The suite auto-downloads the correct node binary on first run.
 
-**Linux / macOS:**
-1. Navigate to the project root directory.
-2. Ensure the controller script has executable permissions.
-3. Invoke the activation command: `./devsuite.sh up`
+```bash
+npm install
+npm run up
+```
 
-**Windows (PowerShell):**
-1. Navigate to the project root directory.
-2. Invoke the activation command: `.\devsuite.ps1 up`
+The local environment will expose an RPC/WS gateway on `ws://localhost:9944` and a visual management interface on `http://localhost:3000`.
 
-The local environment will expose an RPC/WS gateway on port 9944 and a visual management interface on local port 3000.
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `npm run up` | Start node + dashboard (auto-downloads binary if missing) |
+| `npm run down` | Stop all running services |
+| `npm run clean` | Stop services and wipe chain state |
+| `npm run status` | Show service status and endpoints |
+
+> **Note:** On first run, the CLI downloads the Substrate node (~60MB) from official Parity releases. Subsequent starts are instant.

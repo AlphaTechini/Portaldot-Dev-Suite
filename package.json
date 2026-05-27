@@ -1,0 +1,20 @@
+{
+  "name": "portaldot-devsuite",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Local Portaldot development environment",
+  "type": "module",
+  "bin": {
+    "portaldot": "./cli.js"
+  },
+  "scripts": {
+    "up": "node cli.js up",
+    "down": "node cli.js down",
+    "clean": "node cli.js clean",
+    "status": "node cli.js status",
+    "build": "node cli.js build"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
