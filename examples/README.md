@@ -26,3 +26,11 @@ This produces `target/ink/token.contract`.
 ### Interact
 
 Once deployed, use the **Interact** panel to call `transfer`, `balance_of`, etc.
+
+## Finding Pre-compiled Contracts
+
+If you don't have the Rust toolchain installed, search GitHub for pre-compiled `.contract` files:
+- `site:github.com "target/ink/erc20.contract"`
+- `site:github.com "target/ink/flipper.contract"`
+
+Download the raw `.contract` file and upload it to the dashboard.

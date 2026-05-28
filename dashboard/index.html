@@ -938,26 +938,34 @@ mod oracle {
         }
 
         function deployTemplate(i) {
-            // Copy code to clipboard
             navigator.clipboard.writeText(TEMPLATES[i].code);
             
-            // Switch to contracts tab
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             document.querySelector('[data-tab="contracts"]').classList.add('active');
             document.getElementById('tab-contracts').classList.add('active');
             
-            // Show instructions
             const panel = document.getElementById('contracts-panel');
             panel.innerHTML = `
                 <div class="contract-section">
                     <h3>Deploy: ${TEMPLATES[i].name}</h3>
-                    <div class="upload-zone" style="border-color: var(--brand-orange); background: rgba(255, 102, 0, 0.05);">
-                        <p>✅ Code copied to clipboard!</p>
-                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.5rem;">
-                            1. Save code to <code>examples/${TEMPLATES[i].name.toLowerCase().split(' ')[0]}/src/lib.rs</code><br>
-                            2. Run <code>cargo contract build</code> in that folder<br>
-                            3. Upload the generated <code>.contract</code> file below
+                    <div class="upload-zone" style="border-color: var(--brand-orange); background: rgba(255, 102, 0, 0.05); text-align: left; padding: 1.5rem;">
+                        <p style="font-weight: 600; margin-bottom: 0.5rem;">✅ Code copied to clipboard!</p>
+                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
+                            Follow these steps to deploy:
+                        </p>
+                        <ol style="font-size: 0.85rem; color: var(--text-secondary); padding-left: 1.5rem; line-height: 1.8;">
+                            <li>Create a new Rust project: <code>cargo contract new my-contract</code></li>
+                            <li>Replace <code>src/lib.rs</code> with the copied code</li>
+                            <li>Ensure <code>Cargo.toml</code> uses <code>ink = "4.3.0"</code></li>
+                            <li>Build: <code>cargo contract build</code></li>
+                            <li>Upload the generated <code>target/ink/my-contract.contract</code> file below</li>
+                        </ol>
+                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 1rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
+                            📚 <strong>Learn more:</strong><br>
+                            <a href="https://use.ink/" target="_blank" style="color: var(--brand-orange);">ink! Documentation</a> &bull;
+                            <a href="https://use.ink/basics/contract-deployment" target="_blank" style="color: var(--brand-orange);">Deployment Guide</a> &bull;
+                            <a href="https://docs.substrate.io/reference/smart-contracts/" target="_blank" style="color: var(--brand-orange);">Substrate Contracts Reference</a>
                         </p>
                     </div>
                 </div>
@@ -970,7 +978,6 @@ mod oracle {
                 </div>
             `;
             
-            // Re-init upload handlers
             setTimeout(() => {
                 if (typeof setupUploadHandlers === 'function') setupUploadHandlers();
             }, 100);
