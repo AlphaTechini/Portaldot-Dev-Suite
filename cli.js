@@ -200,13 +200,30 @@ async function cmdUp() {
 function cmdDown() {
   const isWin = platform() === "win32";
 
+  log("Stopping node...");
   if (isWin) {
     try {
       execSync("wsl -e pkill -f polkadot 2>/dev/null || true", { stdio: "ignore" });
-      log("Stopped node (WSL)");
     } catch {
-      warn("Node already stopped.");
+      // Ignore errors from pkill
     }
+  }
+
+  ["node", "server"].forEach((name) => {
+    const pid = getPid(name);
+    if (pid) {
+      try {
+        process.kill(pid, isWin ? "SIGTERM" : "SIGINT");
+        log(`Stopped ${name}.`);
+      } catch {
+        log(`${name} was already stopped.`);
+      }
+      rmSync(join(PID_DIR, `${name}.pid`), { force: true });
+    } else {
+      log(`${name} was already stopped.`);
+    }
+  });
+}
   }
 
   ["node", "server"].forEach((name) => {
