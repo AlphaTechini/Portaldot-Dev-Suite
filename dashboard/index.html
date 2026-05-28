@@ -920,11 +920,53 @@ mod oracle {
                         <span style="color: var(--text-secondary);">▼</span>
                     </div>
                     <div class="template-code" id="template-${i}">
-                        <button class="copy-btn" onclick="copyTemplate(${i})">Copy</button>
+                        <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+                            <button class="copy-btn" style="position: static;" onclick="copyTemplate(${i})">Copy Code</button>
+                            <button class="btn btn-primary" style="padding: 0.25rem 0.75rem; font-size: 0.8rem;" onclick="deployTemplate(${i})">Deploy</button>
+                        </div>
                         <pre><code>${t.code.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>
                     </div>
                 </div>
             `).join('');
+        }
+
+        function deployTemplate(i) {
+            // Copy code to clipboard
+            navigator.clipboard.writeText(TEMPLATES[i].code);
+            
+            // Switch to contracts tab
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.querySelector('[data-tab="contracts"]').classList.add('active');
+            document.getElementById('tab-contracts').classList.add('active');
+            
+            // Show instructions
+            const panel = document.getElementById('contracts-panel');
+            panel.innerHTML = `
+                <div class="contract-section">
+                    <h3>Deploy: ${TEMPLATES[i].name}</h3>
+                    <div class="upload-zone" style="border-color: var(--brand-orange); background: rgba(255, 102, 0, 0.05);">
+                        <p>✅ Code copied to clipboard!</p>
+                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.5rem;">
+                            1. Save code to <code>examples/${TEMPLATES[i].name.toLowerCase().split(' ')[0]}/src/lib.rs</code><br>
+                            2. Run <code>cargo contract build</code> in that folder<br>
+                            3. Upload the generated <code>.contract</code> file below
+                        </p>
+                    </div>
+                </div>
+                <div class="contract-section">
+                    <h3>Upload Compiled Contract</h3>
+                    <div class="upload-zone" id="upload-zone">
+                        <p>Drag & drop your .contract file here</p>
+                        <input type="file" id="contract-file" accept=".contract,.json" style="display: none;">
+                    </div>
+                </div>
+            `;
+            
+            // Re-init upload handlers
+            setTimeout(() => {
+                if (typeof setupUploadHandlers === 'function') setupUploadHandlers();
+            }, 100);
         }
 
         function toggleTemplate(i) {
