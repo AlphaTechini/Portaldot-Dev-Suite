@@ -224,21 +224,6 @@ function cmdDown() {
     }
   });
 }
-  }
-
-  ["node", "server"].forEach((name) => {
-    const pid = getPid(name);
-    if (pid) {
-      try {
-        process.kill(pid, isWin ? "SIGTERM" : "SIGINT");
-        log(`Stopped ${name} (PID: ${pid})`);
-      } catch {
-        warn(`${name} already stopped.`);
-      }
-      rmSync(join(PID_DIR, `${name}.pid`), { force: true });
-    }
-  });
-}
 
 function cmdClean() {
   cmdDown();
