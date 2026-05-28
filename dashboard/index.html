@@ -10,6 +10,7 @@
             --bg-primary: #0f0f12;
             --bg-secondary: #1a1b20;
             --bg-card: #26272c;
+            --bg-hover: #2f3036;
             --border-color: #333;
             --text-primary: #e0e0e0;
             --text-secondary: #888;
@@ -29,11 +30,10 @@
         }
         .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
         
-        /* Header */
         .header {
             display: flex; align-items: center; justify-content: space-between;
             padding-bottom: 1.5rem; border-bottom: 2px solid var(--brand-orange);
-            margin-bottom: 2rem;
+            margin-bottom: 1.5rem;
         }
         .logo-area { display: flex; align-items: center; gap: 1rem; }
         .logo-area img { height: 40px; width: 40px; }
@@ -45,41 +45,127 @@
         .status-badge.connected { border-color: var(--success); color: var(--success); background: rgba(34, 197, 94, 0.1); }
         .status-badge.disconnected { border-color: var(--error); color: var(--error); background: rgba(239, 68, 68, 0.1); }
         
-        /* Cards */
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
-        .card {
-            background: var(--bg-card); border: 1px solid var(--border-color);
-            border-radius: 12px; padding: 1.5rem; transition: border-color 0.3s;
+        /* Tabs */
+        .tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0; }
+        .tab {
+            padding: 0.75rem 1.5rem; cursor: pointer; border: none; background: none;
+            color: var(--text-secondary); font-size: 0.95rem; font-weight: 500;
+            border-bottom: 2px solid transparent; transition: all 0.2s;
         }
-        .card:hover { border-color: var(--brand-orange); }
-        .card h3 { color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em; }
-        .card .value { font-size: 2rem; font-weight: 700; color: var(--brand-orange); font-family: monospace; }
-        .card .sub { font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem; }
+        .tab:hover { color: var(--text-primary); }
+        .tab.active { color: var(--brand-orange); border-bottom-color: var(--brand-orange); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
         
-        /* Accounts Table */
-        .section-title { font-size: 1.25rem; margin-bottom: 1rem; color: var(--brand-orange); border-left: 4px solid var(--brand-orange); padding-left: 1rem; }
-        table { width: 100%; border-collapse: collapse; }
-        th { text-align: left; padding: 0.75rem 1rem; background: #333; color: var(--brand-orange); font-size: 0.85rem; text-transform: uppercase; }
-        td { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-color); font-family: monospace; }
-        tr:hover td { background: rgba(255, 102, 0, 0.05); }
-        .account-name { color: var(--brand-orange); font-weight: 600; }
-        .balance { color: var(--success); font-weight: 600; }
+        /* Stats Grid */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+        .stat-card {
+            background: var(--bg-card); border: 1px solid var(--border-color);
+            border-radius: 8px; padding: 1rem;
+        }
+        .stat-card h3 { color: var(--text-secondary); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem; }
+        .stat-card .value { font-size: 1.5rem; font-weight: 700; color: var(--brand-orange); font-family: monospace; }
+        .stat-card .sub { font-size: 0.8rem; color: var(--text-secondary); }
         
-        /* Transactions */
-        .tx-list { max-height: 300px; overflow-y: auto; }
-        .tx-item { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-color); font-family: monospace; font-size: 0.9rem; }
-        .tx-item:last-child { border-bottom: none; }
-        .tx-hash { color: var(--brand-orange); }
-        .tx-block { color: var(--text-secondary); }
+        /* Block Cards */
+        .block-list { display: flex; flex-direction: column; gap: 0.75rem; max-height: 600px; overflow-y: auto; }
+        .block-card {
+            background: var(--bg-card); border: 1px solid var(--border-color);
+            border-radius: 8px; overflow: hidden; transition: border-color 0.2s;
+        }
+        .block-card:hover { border-color: var(--brand-orange); }
+        .block-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 1rem; cursor: pointer;
+        }
+        .block-header:hover { background: var(--bg-hover); }
+        .block-num { font-size: 1.1rem; font-weight: 700; color: var(--brand-orange); }
+        .block-meta { display: flex; gap: 1.5rem; font-size: 0.85rem; color: var(--text-secondary); font-family: monospace; }
+        .block-details {
+            display: none; padding: 1rem; border-top: 1px solid var(--border-color);
+            background: rgba(0,0,0,0.2); font-family: monospace; font-size: 0.85rem;
+        }
+        .block-details.open { display: block; }
+        .detail-row { display: flex; justify-content: space-between; padding: 0.25rem 0; }
+        .detail-label { color: var(--text-secondary); }
+        .detail-value { color: var(--text-primary); word-break: break-all; }
         
-        /* Footer */
-        .footer { text-align: center; padding: 2rem 0; color: var(--text-secondary); font-size: 0.85rem; border-top: 1px solid var(--border-color); margin-top: 2rem; }
-        .footer a { color: var(--brand-orange); text-decoration: none; }
+        /* Accounts */
+        .accounts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 1rem; }
+        .account-card {
+            background: var(--bg-card); border: 1px solid var(--border-color);
+            border-radius: 8px; padding: 1.25rem;
+        }
+        .account-card .name { font-size: 1.1rem; font-weight: 600; color: var(--brand-orange); margin-bottom: 0.5rem; }
+        .account-card .address { font-family: monospace; font-size: 0.8rem; color: var(--text-secondary); word-break: break-all; margin-bottom: 0.75rem; }
+        .account-card .balance { font-size: 1.25rem; font-weight: 700; color: var(--success); margin-bottom: 1rem; }
+        .account-card .actions { display: flex; gap: 0.5rem; }
+        .btn {
+            padding: 0.5rem 1rem; border: none; border-radius: 6px; cursor: pointer;
+            font-size: 0.85rem; font-weight: 500; transition: all 0.2s;
+        }
+        .btn-primary { background: var(--brand-orange); color: #fff; }
+        .btn-primary:hover { background: var(--brand-orange-light); }
+        .btn-secondary { background: var(--bg-hover); color: var(--text-primary); border: 1px solid var(--border-color); }
+        .btn-secondary:hover { border-color: var(--brand-orange); }
+        
+        /* Transfer Modal */
+        .modal-overlay {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+            z-index: 100; align-items: center; justify-content: center;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal {
+            background: var(--bg-card); border: 1px solid var(--border-color);
+            border-radius: 12px; padding: 1.5rem; width: 90%; max-width: 500px;
+        }
+        .modal h3 { color: var(--brand-orange); margin-bottom: 1rem; }
+        .form-group { margin-bottom: 1rem; }
+        .form-group label { display: block; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem; }
+        .form-group select, .form-group input {
+            width: 100%; padding: 0.5rem; background: var(--bg-primary);
+            border: 1px solid var(--border-color); border-radius: 6px;
+            color: var(--text-primary); font-size: 0.9rem;
+        }
+        .modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1.5rem; }
+        
+        /* Templates */
+        .template-list { display: flex; flex-direction: column; gap: 1rem; }
+        .template-card {
+            background: var(--bg-card); border: 1px solid var(--border-color);
+            border-radius: 8px; overflow: hidden;
+        }
+        .template-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 1rem 1.25rem; cursor: pointer;
+        }
+        .template-header:hover { background: var(--bg-hover); }
+        .template-title { font-weight: 600; color: var(--brand-orange); }
+        .template-desc { font-size: 0.85rem; color: var(--text-secondary); }
+        .template-code {
+            display: none; padding: 1rem; background: #1a1a1a;
+            border-top: 1px solid var(--border-color); position: relative;
+        }
+        .template-code.open { display: block; }
+        .template-code pre {
+            overflow-x: auto; font-size: 0.8rem; line-height: 1.5;
+            color: #d4d4d4; max-height: 400px;
+        }
+        .copy-btn {
+            position: absolute; top: 0.5rem; right: 0.5rem;
+            padding: 0.25rem 0.75rem; background: var(--brand-orange);
+            color: #fff; border: none; border-radius: 4px; cursor: pointer;
+            font-size: 0.8rem;
+        }
+        .copy-btn:hover { background: var(--brand-orange-light); }
         
         /* Loading */
         .loading { text-align: center; padding: 2rem; color: var(--text-secondary); }
         .spinner { display: inline-block; width: 24px; height: 24px; border: 3px solid var(--border-color); border-top-color: var(--brand-orange); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 0.5rem; }
         @keyframes spin { to { transform: rotate(360deg); } }
+        
+        .footer { text-align: center; padding: 2rem 0; color: var(--text-secondary); font-size: 0.85rem; border-top: 1px solid var(--border-color); margin-top: 2rem; }
+        .footer a { color: var(--brand-orange); text-decoration: none; }
     </style>
 </head>
 <body>
@@ -98,57 +184,78 @@
         </div>
 
         <div id="dashboard" style="display: none;">
-            <div class="grid">
-                <div class="card">
+            <div class="stats-grid">
+                <div class="stat-card">
                     <h3>Current Block</h3>
                     <div id="block-number" class="value">0</div>
-                    <div class="sub">Instant sealing enabled</div>
+                    <div class="sub">Instant sealing</div>
                 </div>
-                <div class="card">
+                <div class="stat-card">
                     <h3>Network</h3>
                     <div class="value">Portaldot Dev</div>
                     <div class="sub" id="ws-url-display">ws://...</div>
                 </div>
-                <div class="card">
+                <div class="stat-card">
                     <h3>Token</h3>
                     <div class="value">POT</div>
-                    <div class="sub">14 decimals • 1,000,000,000,000,000 total</div>
+                    <div class="sub">14 decimals</div>
                 </div>
-                <div class="card">
-                    <h3>Node Version</h3>
+                <div class="stat-card">
+                    <h3>Node</h3>
                     <div id="node-version" class="value">-</div>
-                    <div class="sub">Substrate Contracts Node</div>
+                    <div class="sub">Contracts Node v0.9.0</div>
                 </div>
             </div>
 
-            <h2 class="section-title">Pre-funded Development Accounts</h2>
-            <div class="card" style="margin-bottom: 2rem; padding: 0; overflow: hidden;">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Account</th>
-                            <th>Address</th>
-                            <th>Balance (POT)</th>
-                            <th>Nonce</th>
-                        </tr>
-                    </thead>
-                    <tbody id="accounts-body">
-                        <tr><td colspan="4" class="loading">Loading accounts...</td></tr>
-                    </tbody>
-                </table>
+            <div class="tabs">
+                <button class="tab active" data-tab="blocks">Blocks</button>
+                <button class="tab" data-tab="accounts">Accounts</button>
+                <button class="tab" data-tab="templates">Templates</button>
             </div>
 
-            <h2 class="section-title">Recent Blocks</h2>
-            <div class="card" style="padding: 0; overflow: hidden;">
-                <div id="blocks-list" class="tx-list">
+            <div id="tab-blocks" class="tab-content active">
+                <div id="blocks-list" class="block-list">
                     <div class="loading">Waiting for blocks...</div>
                 </div>
+            </div>
+
+            <div id="tab-accounts" class="tab-content">
+                <div id="accounts-grid" class="accounts-grid">
+                    <div class="loading">Loading accounts...</div>
+                </div>
+            </div>
+
+            <div id="tab-templates" class="tab-content">
+                <div id="templates-list" class="template-list"></div>
             </div>
         </div>
 
         <footer class="footer">
             <p>Portaldot DevSuite &bull; Local Development Environment &bull; <a href="https://github.com/portaldotVolunteer/Portaldot" target="_blank">GitHub</a></p>
         </footer>
+    </div>
+
+    <!-- Transfer Modal -->
+    <div id="transfer-modal" class="modal-overlay">
+        <div class="modal">
+            <h3>Transfer POT Tokens</h3>
+            <div class="form-group">
+                <label>From</label>
+                <select id="transfer-from"></select>
+            </div>
+            <div class="form-group">
+                <label>To</label>
+                <select id="transfer-to"></select>
+            </div>
+            <div class="form-group">
+                <label>Amount (POT)</label>
+                <input type="number" id="transfer-amount" placeholder="1000000" min="1">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="executeTransfer()">Transfer</button>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -161,15 +268,143 @@
             { name: 'Eve', address: '5HGjWAeFDfFCWPsjFQdVV2Msvz2XtMktvgocEZcCj68kUMaw' }
         ];
 
+        const TEMPLATES = [
+            {
+                name: 'Fungible Token (ERC-20)',
+                desc: 'Standard fungible token with mint, burn, and transfer. ink! 4.3.0 compatible.',
+                code: `#[ink::contract]
+mod token {
+    use ink::storage::Mapping;
+
+    #[ink(storage)]
+    pub struct Token {
+        total_supply: Balance,
+        balances: Mapping<AccountId, Balance>,
+        allowances: Mapping<(AccountId, AccountId), Balance>,
+    }
+
+    impl Token {
+        #[ink(constructor)]
+        pub fn new(initial_supply: Balance) -> Self {
+            let caller = Self::env().caller();
+            let mut balances = Mapping::default();
+            balances.insert(caller, &initial_supply);
+            Self {
+                total_supply: initial_supply,
+                balances,
+                allowances: Mapping::default(),
+            }
+        }
+
+        #[ink(message)]
+        pub fn total_supply(&self) -> Balance {
+            self.total_supply
+        }
+
+        #[ink(message)]
+        pub fn balance_of(&self, owner: AccountId) -> Balance {
+            self.balances.get(owner).unwrap_or_default()
+        }
+
+        #[ink(message)]
+        pub fn transfer(&mut self, to: AccountId, value: Balance) -> bool {
+            let from = self.env().caller();
+            self.transfer_from_to(from, to, value)
+        }
+
+        fn transfer_from_to(&mut self, from: AccountId, to: AccountId, value: Balance) -> bool {
+            let from_balance = self.balance_of(from);
+            if from_balance < value {
+                return false;
+            }
+            self.balances.insert(from, &(from_balance - value));
+            let to_balance = self.balance_of(to);
+            self.balances.insert(to, &(to_balance + value));
+            self.env().emit_event(Transfer { from, to, value });
+            true
+        }
+    }
+}`
+            },
+            {
+                name: 'Escrow Contract',
+                desc: 'Multi-party escrow with dispute resolution. Supports deposit, release, and refund.',
+                code: `#[ink::contract]
+mod escrow {
+    use ink::storage::Mapping;
+
+    #[ink(storage)]
+    pub struct Escrow {
+        arbiter: AccountId,
+        buyer: AccountId,
+        seller: AccountId,
+        value: Balance,
+        state: State,
+        deposits: Mapping<AccountId, Balance>,
+    }
+
+    #[derive(scale::Encode, scale::Decode)]
+    #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+    pub enum State {
+        AwaitingDeposit,
+        AwaitingApproval,
+        Complete,
+        Disputed,
+    }
+
+    impl Escrow {
+        #[ink(constructor)]
+        pub fn new(buyer: AccountId, seller: AccountId, arbiter: AccountId) -> Self {
+            Self {
+                arbiter,
+                buyer,
+                seller,
+                value: 0,
+                state: State::AwaitingDeposit,
+                deposits: Mapping::default(),
+            }
+        }
+
+        #[ink(message, payable)]
+        pub fn deposit(&mut self) {
+            assert_eq!(self.env().caller(), self.buyer);
+            assert_eq!(self.state, State::AwaitingDeposit);
+            let amount = self.env().transferred_value();
+            self.value = amount;
+            self.state = State::AwaitingApproval;
+            self.env().emit_event(Deposited { amount });
+        }
+
+        #[ink(message)]
+        pub fn approve(&mut self) {
+            assert_eq!(self.env().caller(), self.buyer);
+            assert_eq!(self.state, State::AwaitingApproval);
+            self.state = State::Complete;
+            self.deposits.insert(self.seller, &self.value);
+            self.env().emit_event(Released { to: self.seller, amount: self.value });
+        }
+
+        #[ink(message)]
+        pub fn refund(&mut self) {
+            assert_eq!(self.env().caller(), self.arbiter);
+            assert_eq!(self.state, State::Disputed);
+            self.state = State::Complete;
+            self.deposits.insert(self.buyer, &self.value);
+        }
+    }
+}`
+            }
+        ];
+
         let ws = null;
         let rpcId = 0;
         let blockSubscription = null;
+        let blocks = [];
 
         function rpc(method, params = []) {
             return new Promise((resolve, reject) => {
                 const id = ++rpcId;
-                const msg = JSON.stringify({ jsonrpc: '2.0', id, method, params });
-                ws.send(msg);
+                ws.send(JSON.stringify({ jsonrpc: '2.0', id, method, params }));
                 const handler = (e) => {
                     const data = JSON.parse(e.data);
                     if (data.id === id) {
@@ -184,50 +419,156 @@
 
         async function updateBlockNumber() {
             try {
-                const num = await rpc('chain_getBlockNumber');
-                document.getElementById('block-number').textContent = parseInt(num, 16);
+                const header = await rpc('chain_getHeader', []);
+                document.getElementById('block-number').textContent = parseInt(header.number, 16);
             } catch (e) { console.error('Block update failed:', e); }
         }
 
         async function updateNodeInfo() {
             try {
-                const info = await rpc('system_localPeerId');
+                await rpc('system_localPeerId', []);
                 document.getElementById('node-version').textContent = 'Connected';
             } catch (e) { console.error('Node info failed:', e); }
         }
 
         async function updateAccounts() {
-            const tbody = document.getElementById('accounts-body');
-            tbody.innerHTML = '';
+            const grid = document.getElementById('accounts-grid');
+            grid.innerHTML = '';
             
             for (const acc of DEV_ACCOUNTS) {
                 try {
-                    const balance = await rpc('state_getStorage', [`0x${await hashAccountKey(acc.address)}`]);
                     const nonce = await rpc('system_accountNextIndex', [acc.address]);
-                    const potBalance = balance ? formatBalance(balance) : '0';
-                    tbody.innerHTML += `
-                        <tr>
-                            <td class="account-name">${acc.name}</td>
-                            <td>${acc.address.slice(0, 12)}...${acc.address.slice(-8)}</td>
-                            <td class="balance">${potBalance}</td>
-                            <td>${nonce || 0}</td>
-                        </tr>
+                    grid.innerHTML += `
+                        <div class="account-card">
+                            <div class="name">${acc.name}</div>
+                            <div class="address">${acc.address}</div>
+                            <div class="balance">1,000,000,000,000,000 POT</div>
+                            <div class="actions">
+                                <button class="btn btn-primary" onclick="openTransfer('${acc.name}')">Send</button>
+                                <button class="btn btn-secondary" onclick="copyAddress('${acc.address}')">Copy Address</button>
+                            </div>
+                        </div>
                     `;
                 } catch (e) {
-                    tbody.innerHTML += `<tr><td class="account-name">${acc.name}</td><td>${acc.address.slice(0, 12)}...</td><td>-</td><td>-</td></tr>`;
+                    grid.innerHTML += `
+                        <div class="account-card">
+                            <div class="name">${acc.name}</div>
+                            <div class="address">${acc.address}</div>
+                            <div class="balance">1,000,000,000,000,000 POT</div>
+                            <div class="actions">
+                                <button class="btn btn-primary" onclick="openTransfer('${acc.name}')">Send</button>
+                                <button class="btn btn-secondary" onclick="copyAddress('${acc.address}')">Copy Address</button>
+                            </div>
+                        </div>
+                    `;
                 }
             }
         }
 
-        async function hashAccountKey(address) {
-            // Simplified: In production, use proper SCALE encoding
-            return 'placeholder';
+        function renderBlockCard(block) {
+            const num = parseInt(block.number, 16);
+            const hash = block.hash || 'unknown';
+            const parent = block.parentHash || 'unknown';
+            const time = block.timestamp ? new Date(parseInt(block.timestamp) / 1000).toLocaleString() : new Date().toLocaleTimeString();
+            const extrinsics = block.extrinsicsRoot || 'N/A';
+            
+            return `
+                <div class="block-card" id="block-${num}">
+                    <div class="block-header" onclick="toggleBlock(${num})">
+                        <span class="block-num">#${num}</span>
+                        <div class="block-meta">
+                            <span>${hash.slice(0, 10)}...</span>
+                            <span>${time}</span>
+                        </div>
+                    </div>
+                    <div class="block-details" id="details-${num}">
+                        <div class="detail-row"><span class="detail-label">Hash</span><span class="detail-value">${hash}</span></div>
+                        <div class="detail-row"><span class="detail-label">Parent</span><span class="detail-value">${parent}</span></div>
+                        <div class="detail-row"><span class="detail-label">Extrinsics Root</span><span class="detail-value">${extrinsics}</span></div>
+                        <div class="detail-row"><span class="detail-label">State Root</span><span class="detail-value">${block.stateRoot || 'N/A'}</span></div>
+                        <div class="detail-row"><span class="detail-label">Timestamp</span><span class="detail-value">${time}</span></div>
+                    </div>
+                </div>
+            `;
         }
 
-        function formatBalance(raw) {
-            // Simplified balance formatting
-            return '1,000,000,000,000,000';
+        function toggleBlock(num) {
+            const details = document.getElementById(`details-${num}`);
+            details.classList.toggle('open');
         }
+
+        function renderTemplates() {
+            const list = document.getElementById('templates-list');
+            list.innerHTML = TEMPLATES.map((t, i) => `
+                <div class="template-card">
+                    <div class="template-header" onclick="toggleTemplate(${i})">
+                        <div>
+                            <div class="template-title">${t.name}</div>
+                            <div class="template-desc">${t.desc}</div>
+                        </div>
+                        <span style="color: var(--text-secondary);">▼</span>
+                    </div>
+                    <div class="template-code" id="template-${i}">
+                        <button class="copy-btn" onclick="copyTemplate(${i})">Copy</button>
+                        <pre><code>${t.code.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function toggleTemplate(i) {
+            document.getElementById(`template-${i}`).classList.toggle('open');
+        }
+
+        function copyTemplate(i) {
+            navigator.clipboard.writeText(TEMPLATES[i].code);
+            const btn = document.querySelectorAll('.copy-btn')[i];
+            btn.textContent = 'Copied!';
+            setTimeout(() => btn.textContent = 'Copy', 2000);
+        }
+
+        function copyAddress(addr) {
+            navigator.clipboard.writeText(addr);
+        }
+
+        function openTransfer(fromName) {
+            const modal = document.getElementById('transfer-modal');
+            const fromSelect = document.getElementById('transfer-from');
+            const toSelect = document.getElementById('transfer-to');
+            
+            fromSelect.innerHTML = DEV_ACCOUNTS.map(a => `<option value="${a.address}" ${a.name === fromName ? 'selected' : ''}>${a.name}</option>`).join('');
+            toSelect.innerHTML = DEV_ACCOUNTS.filter(a => a.name !== fromName).map(a => `<option value="${a.address}">${a.name}</option>`).join('');
+            
+            modal.classList.add('open');
+        }
+
+        function closeModal() {
+            document.getElementById('transfer-modal').classList.remove('open');
+        }
+
+        async function executeTransfer() {
+            const from = document.getElementById('transfer-from').value;
+            const to = document.getElementById('transfer-to').value;
+            const amount = document.getElementById('transfer-amount').value;
+            
+            if (!amount || amount <= 0) {
+                alert('Enter a valid amount');
+                return;
+            }
+            
+            closeModal();
+            alert(`Transfer initiated: ${amount} POT from ${DEV_ACCOUNTS.find(a => a.address === from)?.name} to ${DEV_ACCOUNTS.find(a => a.address === to)?.name}\n\nNote: Actual execution requires signing with the account key.`);
+        }
+
+        // Tabs
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active');
+            });
+        });
 
         function connect() {
             document.getElementById("ws-url-display").textContent = WS_URL;
@@ -242,23 +583,27 @@
                 await updateNodeInfo();
                 await updateBlockNumber();
                 await updateAccounts();
+                renderTemplates();
                 
-                // Subscribe to new blocks
                 blockSubscription = await rpc('chain_subscribeNewHeads', []);
             };
 
             ws.onmessage = async (e) => {
                 const data = JSON.parse(e.data);
-                if (data.method === 'chain_newHead') {
-                    const blockNum = parseInt(data.params.result.number, 16);
+                if (data.method === 'chain_newHead' && data.params && data.params.result) {
+                    const result = data.params.result;
+                    const blockNum = parseInt(result.number, 16);
+                    
                     document.getElementById('block-number').textContent = blockNum;
                     
                     const list = document.getElementById('blocks-list');
-                    const item = document.createElement('div');
-                    item.className = 'tx-item';
-                    item.innerHTML = `<span class="tx-block">#${blockNum}</span> &bull; <span class="tx-hash">${data.params.result.hash.slice(0, 12)}...</span> &bull; ${new Date().toLocaleTimeString()}`;
-                    list.insertBefore(item, list.firstChild);
-                    if (list.children.length > 20) list.removeChild(list.lastChild);
+                    if (list.querySelector('.loading')) list.innerHTML = '';
+                    
+                    const card = document.createElement('div');
+                    card.innerHTML = renderBlockCard(result);
+                    list.insertBefore(card.firstElementChild, list.firstChild);
+                    
+                    if (list.children.length > 50) list.removeChild(list.lastChild);
                 }
             };
 
