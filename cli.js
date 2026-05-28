@@ -45,12 +45,13 @@ function err(msg) {
 function getPlatform() {
   const os = platform();
   const a = arch();
-  if (os === "win32") return { os: "win32", arch: "x64", binName: "polkadot.exe", platformDir: "windows-x64" };
+  if (os === "win32") return { os: "win32", arch: "x64", binName: "polkadot", platformDir: "linux-x64", wsl: true };
   return {
     os,
     arch: a === "arm64" ? "arm64" : "x64",
     binName: "polkadot",
     platformDir: `${os === "darwin" ? "macos" : "linux"}-${a === "arm64" ? "arm64" : "x64"}`,
+    wsl: false,
   };
 }
 
@@ -122,6 +123,7 @@ function savePid(name, pid) {
 }
 
 async function cmdUp() {
+  const { wsl, platformDir, binName } = getPlatform();
   const bin = await ensureBinary();
   mkdirSync(STATE_DIR, { recursive: true });
 
@@ -129,7 +131,8 @@ async function cmdUp() {
     warn("Node already running.");
   } else {
     log(`Starting Portaldot node on ws://localhost:${NODE_PORT}...`);
-    const child = spawn(bin, [
+
+    const args = [
       "--dev",
       "--rpc-port", String(NODE_PORT),
       "--rpc-cors", "all",
@@ -137,10 +140,22 @@ async function cmdUp() {
       "--tmp",
       "--offchain-worker", "never",
       "--no-hardware-benchmarks",
-    ], {
-      stdio: ["ignore", "pipe", "pipe"],
-      detached: true,
-    });
+    ];
+
+    let child;
+    if (wsl) {
+      const wslPath = bin.replace(/\\/g, "/").replace(/^([A-Z]):/, "/mnt/$1").toLowerCase();
+      child = spawn("wsl", [wslPath, ...args], {
+        stdio: ["ignore", "pipe", "pipe"],
+        detached: true,
+      });
+    } else {
+      child = spawn(bin, args, {
+        stdio: ["ignore", "pipe", "pipe"],
+        detached: true,
+      });
+    }
+
     child.stdout.on("data", (d) => process.stdout.write(d));
     child.stderr.on("data", (d) => process.stderr.write(d));
     child.unref();
@@ -153,7 +168,7 @@ async function cmdUp() {
     warn("Dashboard server already running.");
   } else {
     log(`Starting dashboard on http://localhost:${DASHBOARD_PORT}...`);
-    const child = spawn("node", [join(SERVER_DIR, "server.js"), DASHBOARD_DIR, String(DASHBOARD_PORT)], {
+    const child = spawn("node", [join(SERVER_DIR, "server.cjs"), DASHBOARD_DIR, String(DASHBOARD_PORT)], {
       stdio: "inherit",
       detached: true,
     });
@@ -167,11 +182,23 @@ async function cmdUp() {
 }
 
 function cmdDown() {
+  const isWin = platform() === "win32";
+
+  if (isWin) {
+    // Kill WSL node process by name
+    try {
+      execSync("wsl -e pkill -f polkadot 2>/dev/null || true", { stdio: "ignore" });
+      log("Stopped node (WSL)");
+    } catch {
+      warn("Node already stopped.");
+    }
+  }
+
   ["node", "server"].forEach((name) => {
     const pid = getPid(name);
     if (pid) {
       try {
-        process.kill(pid, platform() === "win32" ? "SIGTERM" : "SIGINT");
+        process.kill(pid, isWin ? "SIGTERM" : "SIGINT");
         log(`Stopped ${name} (PID: ${pid})`);
       } catch {
         warn(`${name} already stopped.`);
