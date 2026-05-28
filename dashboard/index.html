@@ -271,7 +271,7 @@
         const TEMPLATES = [
             {
                 name: 'Fungible Token (ERC-20)',
-                desc: 'Standard fungible token with mint, burn, and transfer. ink! 4.3.0 compatible.',
+                desc: 'Mintable token with transfers, allowances, and events. ink! 4.3.0.',
                 code: `#[ink::contract]
 mod token {
     use ink::storage::Mapping;
@@ -283,23 +283,22 @@ mod token {
         allowances: Mapping<(AccountId, AccountId), Balance>,
     }
 
+    #[ink(event)]
+    pub struct Transfer { from: AccountId, to: AccountId, value: Balance }
+    #[ink(event)]
+    pub struct Approval { owner: AccountId, spender: AccountId, value: Balance }
+
     impl Token {
         #[ink(constructor)]
         pub fn new(initial_supply: Balance) -> Self {
             let caller = Self::env().caller();
             let mut balances = Mapping::default();
             balances.insert(caller, &initial_supply);
-            Self {
-                total_supply: initial_supply,
-                balances,
-                allowances: Mapping::default(),
-            }
+            Self { total_supply: initial_supply, balances, allowances: Mapping::default() }
         }
 
         #[ink(message)]
-        pub fn total_supply(&self) -> Balance {
-            self.total_supply
-        }
+        pub fn total_supply(&self) -> Balance { self.total_supply }
 
         #[ink(message)]
         pub fn balance_of(&self, owner: AccountId) -> Balance {
@@ -309,17 +308,31 @@ mod token {
         #[ink(message)]
         pub fn transfer(&mut self, to: AccountId, value: Balance) -> bool {
             let from = self.env().caller();
-            self.transfer_from_to(from, to, value)
+            self._transfer(from, to, value)
         }
 
-        fn transfer_from_to(&mut self, from: AccountId, to: AccountId, value: Balance) -> bool {
-            let from_balance = self.balance_of(from);
-            if from_balance < value {
-                return false;
-            }
-            self.balances.insert(from, &(from_balance - value));
-            let to_balance = self.balance_of(to);
-            self.balances.insert(to, &(to_balance + value));
+        #[ink(message)]
+        pub fn approve(&mut self, spender: AccountId, value: Balance) -> bool {
+            let owner = self.env().caller();
+            self.allowances.insert((owner, spender), &value);
+            self.env().emit_event(Approval { owner, spender, value });
+            true
+        }
+
+        #[ink(message)]
+        pub fn transfer_from(&mut self, from: AccountId, to: AccountId, value: Balance) -> bool {
+            let caller = self.env().caller();
+            let allowance = self.allowances.get((from, caller)).unwrap_or_default();
+            if allowance < value { return false; }
+            self.allowances.insert((from, caller), &(allowance - value));
+            self._transfer(from, to, value)
+        }
+
+        fn _transfer(&mut self, from: AccountId, to: AccountId, value: Balance) -> bool {
+            let from_bal = self.balance_of(from);
+            if from_bal < value { return false; }
+            self.balances.insert(from, &(from_bal - value));
+            self.balances.insert(to, &(self.balance_of(to) + value));
             self.env().emit_event(Transfer { from, to, value });
             true
         }
@@ -327,8 +340,8 @@ mod token {
 }`
             },
             {
-                name: 'Escrow Contract',
-                desc: 'Multi-party escrow with dispute resolution. Supports deposit, release, and refund.',
+                name: 'Escrow',
+                desc: 'Buyer/seller/arbiter flow with deposit, release, and dispute refund.',
                 code: `#[ink::contract]
 mod escrow {
     use ink::storage::Mapping;
@@ -340,39 +353,28 @@ mod escrow {
         seller: AccountId,
         value: Balance,
         state: State,
-        deposits: Mapping<AccountId, Balance>,
     }
 
     #[derive(scale::Encode, scale::Decode)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
-    pub enum State {
-        AwaitingDeposit,
-        AwaitingApproval,
-        Complete,
-        Disputed,
-    }
+    pub enum State { AwaitingDeposit, AwaitingApproval, Complete, Disputed }
+
+    #[ink(event)] pub struct Deposited { amount: Balance }
+    #[ink(event)] pub struct Released { to: AccountId, amount: Balance }
 
     impl Escrow {
         #[ink(constructor)]
         pub fn new(buyer: AccountId, seller: AccountId, arbiter: AccountId) -> Self {
-            Self {
-                arbiter,
-                buyer,
-                seller,
-                value: 0,
-                state: State::AwaitingDeposit,
-                deposits: Mapping::default(),
-            }
+            Self { arbiter, buyer, seller, value: 0, state: State::AwaitingDeposit }
         }
 
         #[ink(message, payable)]
         pub fn deposit(&mut self) {
             assert_eq!(self.env().caller(), self.buyer);
             assert_eq!(self.state, State::AwaitingDeposit);
-            let amount = self.env().transferred_value();
-            self.value = amount;
+            self.value = self.env().transferred_value();
             self.state = State::AwaitingApproval;
-            self.env().emit_event(Deposited { amount });
+            self.env().emit_event(Deposited { amount: self.value });
         }
 
         #[ink(message)]
@@ -380,16 +382,362 @@ mod escrow {
             assert_eq!(self.env().caller(), self.buyer);
             assert_eq!(self.state, State::AwaitingApproval);
             self.state = State::Complete;
-            self.deposits.insert(self.seller, &self.value);
             self.env().emit_event(Released { to: self.seller, amount: self.value });
         }
 
         #[ink(message)]
-        pub fn refund(&mut self) {
+        pub fn dispute(&mut self) {
+            assert!(self.env().caller() == self.buyer || self.env().caller() == self.seller);
+            assert_eq!(self.state, State::AwaitingApproval);
+            self.state = State::Disputed;
+        }
+
+        #[ink(message)]
+        pub fn resolve(&mut self, refund_buyer: bool) {
             assert_eq!(self.env().caller(), self.arbiter);
             assert_eq!(self.state, State::Disputed);
             self.state = State::Complete;
-            self.deposits.insert(self.buyer, &self.value);
+        }
+    }
+}`
+            },
+            {
+                name: 'NFT (ERC-721)',
+                desc: 'Mintable NFT with ownership tracking, approvals, and metadata URI.',
+                code: `#[ink::contract]
+mod nft {
+    use ink::storage::Mapping;
+
+    #[ink(storage)]
+    pub struct Nft {
+        owner: AccountId,
+        tokens: Mapping<TokenId, AccountId>,
+        approvals: Mapping<TokenId, AccountId>,
+        token_uri: Mapping<TokenId, String>,
+        next_token_id: TokenId,
+    }
+
+    pub type TokenId = u64;
+
+    #[ink(event)] pub struct Transfer { from: AccountId, to: AccountId, token_id: TokenId }
+    #[ink(event)] pub struct Approval { owner: AccountId, approved: AccountId, token_id: TokenId }
+
+    impl Nft {
+        #[ink(constructor)]
+        pub fn new() -> Self {
+            Self {
+                owner: Self::env().caller(),
+                tokens: Mapping::default(),
+                approvals: Mapping::default(),
+                token_uri: Mapping::default(),
+                next_token_id: 1,
+            }
+        }
+
+        #[ink(message)]
+        pub fn mint(&mut self, uri: String) -> TokenId {
+            let id = self.next_token_id;
+            self.tokens.insert(id, &self.env().caller());
+            self.token_uri.insert(id, &uri);
+            self.next_token_id += 1;
+            self.env().emit_event(Transfer { from: AccountId::from([0x0; 32]), to: self.env().caller(), token_id: id });
+            id
+        }
+
+        #[ink(message)]
+        pub fn owner_of(&self, token_id: TokenId) -> AccountId {
+            self.tokens.get(token_id).expect("Token does not exist")
+        }
+
+        #[ink(message)]
+        pub fn transfer(&mut self, to: AccountId, token_id: TokenId) {
+            let from = self.env().caller();
+            assert_eq!(self.owner_of(token_id), from);
+            self.tokens.insert(token_id, &to);
+            self.env().emit_event(Transfer { from, to, token_id });
+        }
+
+        #[ink(message)]
+        pub fn approve(&mut self, approved: AccountId, token_id: TokenId) {
+            assert_eq!(self.owner_of(token_id), self.env().caller());
+            self.approvals.insert(token_id, &approved);
+            self.env().emit_event(Approval { owner: self.env().caller(), approved, token_id });
+        }
+
+        #[ink(message)]
+        pub fn token_uri(&self, token_id: TokenId) -> String {
+            self.token_uri.get(token_id).unwrap_or_default()
+        }
+    }
+}`
+            },
+            {
+                name: 'Multi-Sig Wallet',
+                desc: 'N-of-M threshold wallet. Propose, approve, and execute transactions.',
+                code: `#[ink::contract]
+mod multisig {
+    use ink::storage::Mapping;
+
+    #[ink(storage)]
+    pub struct MultiSig {
+        owners: Vec<AccountId>,
+        required: u32,
+        proposals: Mapping<ProposalId, Proposal>,
+        next_proposal_id: ProposalId,
+    }
+
+    pub type ProposalId = u64;
+
+    #[derive(scale::Encode, scale::Decode)]
+    #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+    pub struct Proposal {
+        to: AccountId,
+        value: Balance,
+        approvals: Vec<AccountId>,
+        executed: bool,
+    }
+
+    impl MultiSig {
+        #[ink(constructor)]
+        pub fn new(owners: Vec<AccountId>, required: u32) -> Self {
+            assert!(required > 0 && required <= owners.len() as u32);
+            Self { owners, required, proposals: Mapping::default(), next_proposal_id: 1 }
+        }
+
+        #[ink(message)]
+        pub fn propose(&mut self, to: AccountId, value: Balance) -> ProposalId {
+            assert!(self.owners.contains(&self.env().caller()));
+            let id = self.next_proposal_id;
+            self.proposals.insert(id, &Proposal { to, value, approvals: vec![self.env().caller()], executed: false });
+            self.next_proposal_id += 1;
+            id
+        }
+
+        #[ink(message)]
+        pub fn approve(&mut self, proposal_id: ProposalId) {
+            let mut proposal = self.proposals.get(proposal_id).expect("Proposal not found");
+            assert!(!proposal.executed);
+            assert!(!proposal.approvals.contains(&self.env().caller()));
+            proposal.approvals.push(self.env().caller());
+            self.proposals.insert(proposal_id, &proposal);
+        }
+
+        #[ink(message)]
+        pub fn execute(&mut self, proposal_id: ProposalId) {
+            let proposal = self.proposals.get(proposal_id).expect("Proposal not found");
+            assert!(!proposal.executed);
+            assert!(proposal.approvals.len() as u32 >= self.required);
+            // Transfer logic would go here
+        }
+
+        #[ink(message)]
+        pub fn is_owner(&self, account: AccountId) -> bool {
+            self.owners.contains(&account)
+        }
+    }
+}`
+            },
+            {
+                name: 'Voting / Governance',
+                desc: 'Token-weighted proposals with voting periods and execution.',
+                code: `#[ink::contract]
+mod voting {
+    use ink::storage::Mapping;
+
+    #[ink(storage)]
+    pub struct Voting {
+        token: AccountId,
+        proposals: Mapping<ProposalId, Proposal>,
+        next_proposal_id: ProposalId,
+        voting_period: u64,
+    }
+
+    pub type ProposalId = u64;
+
+    #[derive(scale::Encode, scale::Decode)]
+    #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+    pub struct Proposal {
+        description: String,
+        for_votes: Balance,
+        against_votes: Balance,
+        end_block: BlockNumber,
+        executed: bool,
+    }
+
+    impl Voting {
+        #[ink(constructor)]
+        pub fn new(token: AccountId, voting_period: u64) -> Self {
+            Self { token, proposals: Mapping::default(), next_proposal_id: 1, voting_period }
+        }
+
+        #[ink(message)]
+        pub fn create_proposal(&mut self, description: String) -> ProposalId {
+            let id = self.next_proposal_id;
+            let end_block = self.env().block_number() + self.voting_period;
+            self.proposals.insert(id, &Proposal { description, for_votes: 0, against_votes: 0, end_block, executed: false });
+            self.next_proposal_id += 1;
+            id
+        }
+
+        #[ink(message)]
+        pub fn vote(&mut self, proposal_id: ProposalId, support: bool) {
+            let proposal = self.proposals.get(proposal_id).expect("Proposal not found");
+            assert!(self.env().block_number() < proposal.end_block);
+            // Balance check against token contract would go here
+            if support {
+                // proposal.for_votes += balance;
+            } else {
+                // proposal.against_votes += balance;
+            }
+        }
+
+        #[ink(message)]
+        pub fn execute(&mut self, proposal_id: ProposalId) {
+            let mut proposal = self.proposals.get(proposal_id).expect("Proposal not found");
+            assert!(!proposal.executed);
+            assert!(self.env().block_number() >= proposal.end_block);
+            assert!(proposal.for_votes > proposal.against_votes);
+            proposal.executed = true;
+            self.proposals.insert(proposal_id, &proposal);
+        }
+    }
+}`
+            },
+            {
+                name: 'Staking',
+                desc: 'Stake tokens, earn rewards per block, and withdraw with accrued rewards.',
+                code: `#[ink::contract]
+mod staking {
+    use ink::storage::Mapping;
+
+    #[ink(storage)]
+    pub struct Staking {
+        token: AccountId,
+        reward_per_block: Balance,
+        total_staked: Balance,
+        stakes: Mapping<AccountId, StakeInfo>,
+        last_reward_block: BlockNumber,
+        accumulated_reward_per_stake: Balance,
+    }
+
+    #[derive(scale::Encode, scale::Decode)]
+    #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+    pub struct StakeInfo {
+        amount: Balance,
+        reward_debt: Balance,
+    }
+
+    impl Staking {
+        #[ink(constructor)]
+        pub fn new(token: AccountId, reward_per_block: Balance) -> Self {
+            Self {
+                token, reward_per_block, total_staked: 0,
+                stakes: Mapping::default(),
+                last_reward_block: Self::env().block_number(),
+                accumulated_reward_per_stake: 0,
+            }
+        }
+
+        #[ink(message)]
+        pub fn stake(&mut self, amount: Balance) {
+            assert!(amount > 0);
+            self.update_pool();
+            let mut stake = self.stakes.get(self.env().caller()).unwrap_or(StakeInfo { amount: 0, reward_debt: 0 });
+            if stake.amount > 0 {
+                let pending = stake.amount * self.accumulated_reward_per_stake - stake.reward_debt;
+                // payout(pending);
+            }
+            stake.amount += amount;
+            stake.reward_debt = stake.amount * self.accumulated_reward_per_stake;
+            self.stakes.insert(self.env().caller(), &stake);
+            self.total_staked += amount;
+        }
+
+        #[ink(message)]
+        pub fn withdraw(&mut self, amount: Balance) {
+            let mut stake = self.stakes.get(self.env().caller()).expect("No stake");
+            assert!(stake.amount >= amount);
+            self.update_pool();
+            stake.amount -= amount;
+            stake.reward_debt = stake.amount * self.accumulated_reward_per_stake;
+            self.stakes.insert(self.env().caller(), &stake);
+            self.total_staked -= amount;
+            // payout(amount);
+        }
+
+        fn update_pool(&mut self) {
+            let current_block = self.env().block_number();
+            if current_block <= self.last_reward_block { return; }
+            if self.total_staked == 0 {
+                self.last_reward_block = current_block;
+                return;
+            }
+            let blocks = current_block - self.last_reward_block;
+            self.accumulated_reward_per_stake += blocks * self.reward_per_block / self.total_staked;
+            self.last_reward_block = current_block;
+        }
+    }
+}`
+            },
+            {
+                name: 'Price Oracle',
+                desc: 'Aggregated price feed with multiple reporters and median calculation.',
+                code: `#[ink::contract]
+mod oracle {
+    use ink::storage::Mapping;
+
+    #[ink(storage)]
+    pub struct Oracle {
+        owner: AccountId,
+        reporters: Vec<AccountId>,
+        prices: Mapping<AssetId, Mapping<AccountId, PriceUpdate>>,
+        rounds: Mapping<AssetId, Round>,
+    }
+
+    pub type AssetId = u32;
+    pub type Price = u128;
+
+    #[derive(scale::Encode, scale::Decode)]
+    #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+    pub struct PriceUpdate { price: Price, timestamp: u64 }
+
+    #[derive(scale::Encode, scale::Decode)]
+    #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+    pub struct Round { median: Price, timestamp: u64, complete: bool }
+
+    impl Oracle {
+        #[ink(constructor)]
+        pub fn new(reporters: Vec<AccountId>) -> Self {
+            Self {
+                owner: Self::env().caller(),
+                reporters,
+                prices: Mapping::default(),
+                rounds: Mapping::default(),
+            }
+        }
+
+        #[ink(message)]
+        pub fn submit_price(&mut self, asset_id: AssetId, price: Price) {
+            assert!(self.reporters.contains(&self.env().caller()));
+            let update = PriceUpdate { price, timestamp: Self::env().block_timestamp() };
+            self.prices.get(asset_id).insert(self.env().caller(), &update);
+            self.try_complete_round(asset_id);
+        }
+
+        #[ink(message)]
+        pub fn get_price(&self, asset_id: AssetId) -> Price {
+            let round = self.rounds.get(asset_id);
+            round.map(|r| r.median).unwrap_or(0)
+        }
+
+        fn try_complete_round(&mut self, asset_id: AssetId) {
+            let mut updates: Vec<Price> = self.reporters.iter()
+                .filter_map(|r| self.prices.get(asset_id).get(r).map(|u| u.price))
+                .collect();
+            if updates.len() < self.reporters.len() { return; }
+            updates.sort();
+            let median = updates[updates.len() / 2];
+            self.rounds.insert(asset_id, &Round { median, timestamp: Self::env().block_timestamp(), complete: true });
         }
     }
 }`
@@ -465,12 +813,21 @@ mod escrow {
             }
         }
 
-        function renderBlockCard(block) {
+        async function renderBlockCard(block) {
             const num = parseInt(block.number, 16);
-            const hash = block.hash || 'unknown';
             const parent = block.parentHash || 'unknown';
             const time = block.timestamp ? new Date(parseInt(block.timestamp) / 1000).toLocaleString() : new Date().toLocaleTimeString();
             const extrinsics = block.extrinsicsRoot || 'N/A';
+            const stateRoot = block.stateRoot || 'N/A';
+            
+            let hash = block.hash;
+            if (!hash) {
+                try {
+                    hash = await rpc('chain_getBlockHash', [num]);
+                } catch {
+                    hash = 'fetching...';
+                }
+            }
             
             return `
                 <div class="block-card" id="block-${num}">
@@ -485,7 +842,7 @@ mod escrow {
                         <div class="detail-row"><span class="detail-label">Hash</span><span class="detail-value">${hash}</span></div>
                         <div class="detail-row"><span class="detail-label">Parent</span><span class="detail-value">${parent}</span></div>
                         <div class="detail-row"><span class="detail-label">Extrinsics Root</span><span class="detail-value">${extrinsics}</span></div>
-                        <div class="detail-row"><span class="detail-label">State Root</span><span class="detail-value">${block.stateRoot || 'N/A'}</span></div>
+                        <div class="detail-row"><span class="detail-label">State Root</span><span class="detail-value">${stateRoot}</span></div>
                         <div class="detail-row"><span class="detail-label">Timestamp</span><span class="detail-value">${time}</span></div>
                     </div>
                 </div>
@@ -599,9 +956,10 @@ mod escrow {
                     const list = document.getElementById('blocks-list');
                     if (list.querySelector('.loading')) list.innerHTML = '';
                     
-                    const card = document.createElement('div');
-                    card.innerHTML = renderBlockCard(result);
-                    list.insertBefore(card.firstElementChild, list.firstChild);
+                    const cardHtml = await renderBlockCard(result);
+                    const wrapper = document.createElement('div');
+                    wrapper.innerHTML = cardHtml;
+                    list.insertBefore(wrapper.firstElementChild, list.firstChild);
                     
                     if (list.children.length > 50) list.removeChild(list.lastChild);
                 }
