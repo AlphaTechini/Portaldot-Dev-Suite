@@ -134,12 +134,12 @@ async function cmdUp() {
 
     const args = [
       "--dev",
+      "--ws-port", String(NODE_PORT),
+      "--ws-external",
       "--rpc-port", String(NODE_PORT),
       "--rpc-cors", "all",
-      "--rpc-external",
       "--tmp",
       "--offchain-worker", "never",
-      "--no-hardware-benchmarks",
     ];
 
     let child;
