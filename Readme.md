@@ -13,19 +13,78 @@ Substrate development shouldn't require a PhD in systems programming. Portaldot 
 *   **Live Contract Interaction:** Upload a compiled `.contract` file and interact with it immediately. No external tools, no context switching.
 *   **Pre-Built Templates:** Seven production-ready ink! contracts (ERC-20, NFT, Escrow, Multi-Sig, Voting, Staking, Oracle) ready to copy, customize, and deploy.
 
-## Architecture
+## System Architecture
 
-### Zero-Config Node Orchestration
-The CLI manages the entire lifecycle of your local blockchain. It detects your OS, fetches the appropriate pre-compiled binary, and launches the node with optimized flags for instant sealing. On Windows, it seamlessly routes execution through WSL2, abstracting away the complexity of cross-platform binary distribution.
+Portaldot is built on a decoupled architecture that separates orchestration, execution, and presentation. This ensures that each layer can be optimized independently while maintaining a cohesive developer experience.
 
-### Dynamic Network Resolution
-WSL2 assigns ephemeral IP addresses that break traditional localhost assumptions. Portaldot's server detects the active WSL interface at startup and injects the correct WebSocket endpoint into the dashboard. You never have to touch a config file.
+### High-Level Overview
 
-### Static-First Dashboard
-The UI is served by a lightweight, zero-dependency Node.js server. It loads `@polkadot/api` dynamically via CDN, keeping the initial payload minimal while providing full Substrate RPC capabilities. The dashboard parses contract metadata client-side, generating deployment forms and interaction panels on the fly.
+```mermaid
+graph TD
+    subgraph Host Environment
+        User[Developer] -->|npm run up| CLI[Node.js CLI Orchestration]
+        CLI -->|Process Management| WSL{WSL2 / Native Runtime}
+        CLI -->|HTTP Server| Server[Static Asset Server]
+    end
 
-### Binary Distribution Strategy
-We don't bloat the repository with 60MB binaries. Instead, the suite fetches official upstream releases on first run. This keeps clone times instant and ensures you're always running the verified, audited node version.
+    subgraph Blockchain Layer
+        WSL -->|Spawn| Node[Substrate Contracts Node]
+        Node -->|RPC/WS :9944| Chain[Local Chain State]
+    end
+
+    subgraph Presentation Layer
+        Server -->|Serve| Dash[Dashboard UI]
+        Dash -->|WebSocket Connection| Node
+        Dash -->|Dynamic Config| Server
+    end
+
+    style CLI fill:#f9f,stroke:#333,stroke-width:2px
+    style Node fill:#bbf,stroke:#333,stroke-width:2px
+    style Dash fill:#bfb,stroke:#333,stroke-width:2px
+```
+
+### Component Breakdown
+
+#### 1. Orchestration Layer (`cli.js`)
+The CLI is the brain of the operation. It uses Node.js `child_process` to manage the lifecycle of the Substrate node and the dashboard server.
+*   **Binary Resolution:** Detects the host OS and architecture. If the binary is missing, it fetches the correct artifact from upstream releases.
+*   **WSL Bridging:** On Windows, it translates local paths to WSL mount points (`/mnt/c/...`) and executes the Linux binary via `wsl -e`. It captures the WSL process PID to allow clean shutdowns from the host.
+*   **Port Detection:** The node may fallback to a random port if `9944` is occupied. The CLI parses the node's stdout for the `Listening for new connections on...` message and passes the actual port to the dashboard server.
+
+#### 2. Network Bridging & Dynamic Injection
+WSL2 uses a virtualized network interface with an ephemeral IP address. Hardcoding `localhost` breaks connectivity between the Windows host browser and the WSL node.
+*   **Detection:** The server executes a lightweight WSL command (`ip -4 addr show eth0`) to resolve the current virtual IP.
+*   **Injection:** The server intercepts requests for `index.html` and injects the resolved WebSocket URL into the client script before serving. This ensures the dashboard always connects to the correct endpoint without manual configuration.
+
+#### 3. Contract Deployment Flow
+The dashboard integrates `@polkadot/api` to handle SCALE encoding and transaction signing directly in the browser.
+
+```mermaid
+sequenceDiagram
+    participant Dev as Developer
+    participant UI as Dashboard UI
+    participant API as @polkadot/api
+    participant Node as Substrate Node
+
+    Dev->>UI: Upload .contract file
+    UI->>UI: Parse Metadata JSON
+    UI->>Dev: Render Deploy Form
+    Dev->>UI: Fill Args & Sign
+    UI->>API: tx.contracts.instantiate
+    API->>Node: Submit Extrinsic
+    Node-->>API: Contract Address
+    API-->>UI: Update State
+    UI->>Dev: Show Interaction Panel
+```
+
+### Technical Decisions & Trade-offs
+
+| Decision | Rationale | Trade-off |
+| :--- | :--- | :--- |
+| **WSL2 Execution on Windows** | Substrate binaries are Linux-first. Building for Windows introduces massive toolchain debt. | Requires WSL2; adds slight overhead for path translation. |
+| **Dynamic IP Injection** | WSL2 IPs change on every reboot. Static config is brittle. | Adds ~2s startup delay for IP detection. |
+| **CDN-based Polkadot API** | Avoids bundling a 5MB+ library. Keeps the dashboard lightweight. | Requires internet access on first load; relies on CDN availability. |
+| **JSON Metadata Parsing** | `.contract` files contain all type info needed for UI generation. | Large metadata files can slow down initial parsing. |
 
 ## Getting Started
 
