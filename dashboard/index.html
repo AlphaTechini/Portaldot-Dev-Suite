@@ -159,6 +159,53 @@
         }
         .copy-btn:hover { background: var(--brand-orange-light); }
         
+        /* Contracts */
+        .contract-section { margin-bottom: 1.5rem; }
+        .contract-section h3 { color: var(--brand-orange); margin-bottom: 0.75rem; font-size: 1rem; }
+        .upload-zone {
+            border: 2px dashed var(--border-color); border-radius: 8px; padding: 2rem;
+            text-align: center; cursor: pointer; transition: border-color 0.2s;
+        }
+        .upload-zone:hover { border-color: var(--brand-orange); }
+        .upload-zone.dragover { border-color: var(--brand-orange); background: rgba(255, 102, 0, 0.05); }
+        .deploy-form { display: grid; gap: 1rem; }
+        .deploy-form .form-row { display: flex; gap: 1rem; align-items: end; }
+        .deploy-form .form-group { flex: 1; }
+        .deploy-form .form-group label { display: block; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem; }
+        .deploy-form .form-group input, .deploy-form .form-group select {
+            width: 100%; padding: 0.5rem; background: var(--bg-primary);
+            border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary);
+        }
+        .deployed-list { display: flex; flex-direction: column; gap: 0.5rem; }
+        .deployed-item {
+            background: var(--bg-card); border: 1px solid var(--border-color);
+            border-radius: 6px; padding: 0.75rem 1rem; cursor: pointer;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .deployed-item:hover { border-color: var(--brand-orange); }
+        .deployed-item.active { border-color: var(--brand-orange); background: rgba(255, 102, 0, 0.05); }
+        .method-list { display: flex; flex-direction: column; gap: 0.5rem; }
+        .method-card {
+            background: var(--bg-card); border: 1px solid var(--border-color);
+            border-radius: 6px; padding: 1rem;
+        }
+        .method-card h4 { color: var(--text-primary); margin-bottom: 0.5rem; display: flex; justify-content: space-between; }
+        .method-type { font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 4px; }
+        .method-type.read { background: var(--success); color: #000; }
+        .method-type.write { background: var(--warning); color: #000; }
+        .method-args { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
+        .method-args input {
+            padding: 0.4rem; background: var(--bg-primary); border: 1px solid var(--border-color);
+            border-radius: 4px; color: var(--text-primary); font-size: 0.85rem; width: 150px;
+        }
+        .event-log {
+            background: var(--bg-primary); border: 1px solid var(--border-color);
+            border-radius: 6px; padding: 0.75rem; max-height: 200px; overflow-y: auto;
+            font-family: monospace; font-size: 0.8rem;
+        }
+        .event-item { padding: 0.25rem 0; border-bottom: 1px solid var(--border-color); }
+        .event-item:last-child { border-bottom: none; }
+        
         /* Loading */
         .loading { text-align: center; padding: 2rem; color: var(--text-secondary); }
         .spinner { display: inline-block; width: 24px; height: 24px; border: 3px solid var(--border-color); border-top-color: var(--brand-orange); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 0.5rem; }
@@ -210,6 +257,7 @@
             <div class="tabs">
                 <button class="tab active" data-tab="blocks">Blocks</button>
                 <button class="tab" data-tab="accounts">Accounts</button>
+                <button class="tab" data-tab="contracts">Contracts</button>
                 <button class="tab" data-tab="templates">Templates</button>
             </div>
 
@@ -222,6 +270,12 @@
             <div id="tab-accounts" class="tab-content">
                 <div id="accounts-grid" class="accounts-grid">
                     <div class="loading">Loading accounts...</div>
+                </div>
+            </div>
+
+            <div id="tab-contracts" class="tab-content">
+                <div id="contracts-panel">
+                    <div class="loading">Connecting to node for contract support...</div>
                 </div>
             </div>
 
@@ -943,6 +997,9 @@ mod oracle {
                 renderTemplates();
                 
                 blockSubscription = await rpc('chain_subscribeNewHeads', []);
+                
+                // Initialize Polkadot API for contracts
+                if (!api) initPolkadotApi();
             };
 
             ws.onmessage = async (e) => {
@@ -978,6 +1035,305 @@ mod oracle {
         }
 
         connect();
+    </script>
+
+    <script src="https://unpkg.com/@polkadot/api@10.13.1/bundle-polkadot-api.js"></script>
+    <script src="https://unpkg.com/@polkadot/api-contract@10.13.1/bundle-polkadot-api-contract.js"></script>
+    <script src="https://unpkg.com/@polkadot/keyring@12.6.2/bundle-polkadot-keyring.js"></script>
+
+    <script>
+        let api = null;
+        let keyring = null;
+        let deployedContracts = [];
+        let activeContract = null;
+        let contractCode = null;
+        let contractAbi = null;
+
+        async function initPolkadotApi() {
+            const panel = document.getElementById('contracts-panel');
+            panel.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading Polkadot API...</p></div>';
+            
+            try {
+                // Wait for scripts to load
+                await new Promise(r => setTimeout(r, 500));
+                
+                const { ApiPromise, WsProvider } = window['polkadot-api'];
+                const { Keyring } = window['polkadot-keyring'];
+                
+                const provider = new WsProvider(WS_URL);
+                api = await ApiPromise.create({ provider });
+                
+                keyring = new Keyring({ type: 'sr25519' });
+                DEV_ACCOUNTS.forEach(acc => {
+                    keyring.addFromUri(`//${acc.name}`, { name: acc.name }, 'sr25519');
+                });
+
+                panel.innerHTML = `
+                    <div class="contract-section">
+                        <h3>Upload Contract (.contract)</h3>
+                        <div class="upload-zone" id="upload-zone">
+                            <p>Drag & drop your compiled .contract file here</p>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary);">or click to browse</p>
+                            <input type="file" id="contract-file" accept=".contract,.json" style="display: none;">
+                        </div>
+                    </div>
+                    <div id="deploy-section" style="display: none;">
+                        <div class="contract-section">
+                            <h3>Deploy Contract</h3>
+                            <div class="deploy-form" id="deploy-form"></div>
+                        </div>
+                    </div>
+                    <div class="contract-section">
+                        <h3>Deployed Contracts</h3>
+                        <div id="deployed-list" class="deployed-list">
+                            <p style="color: var(--text-secondary);">No contracts deployed yet.</p>
+                        </div>
+                    </div>
+                    <div id="interact-section" style="display: none;">
+                        <div class="contract-section">
+                            <h3>Interact</h3>
+                            <div id="method-list" class="method-list"></div>
+                        </div>
+                        <div class="contract-section">
+                            <h3>Events</h3>
+                            <div id="event-log" class="event-log">Waiting for events...</div>
+                        </div>
+                    </div>
+                `;
+
+                setupUploadHandlers();
+            } catch (e) {
+                panel.innerHTML = `<div class="loading" style="color: var(--error);">Failed to connect: ${e.message}</div>`;
+                console.error(e);
+            }
+        }
+
+        function setupUploadHandlers() {
+            const zone = document.getElementById('upload-zone');
+            const input = document.getElementById('contract-file');
+
+            zone.addEventListener('click', () => input.click());
+            zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragover'); });
+            zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+            zone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                zone.classList.remove('dragover');
+                if (e.dataTransfer.files.length) handleContractFile(e.dataTransfer.files[0]);
+            });
+            input.addEventListener('change', () => {
+                if (input.files.length) handleContractFile(input.files[0]);
+            });
+        }
+
+        function handleContractFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    contractCode = data.source.wasm;
+                    contractAbi = data;
+                    renderDeployForm();
+                } catch (err) {
+                    alert('Invalid contract file: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function renderDeployForm() {
+            const section = document.getElementById('deploy-section');
+            const form = document.getElementById('deploy-form');
+            section.style.display = 'block';
+
+            const constructors = contractAbi.spec.constructors;
+            let html = `
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Signer</label>
+                        <select id="deploy-signer">
+                            ${DEV_ACCOUNTS.map(a => `<option value="${a.name}">${a.name}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Constructor</label>
+                        <select id="deploy-constructor">
+                            ${constructors.map((c, i) => `<option value="${i}">${c.label}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+            `;
+
+            constructors.forEach((c, i) => {
+                html += `<div id="ctor-args-${i}" style="display: ${i === 0 ? 'block' : 'none'};">`;
+                c.args.forEach(arg => {
+                    html += `
+                        <div class="form-group">
+                            <label>${arg.label} (${arg.type.displayName})</label>
+                            <input type="text" id="ctor-arg-${c.index}-${arg.label}" placeholder="${arg.type.displayName}">
+                        </div>
+                    `;
+                });
+                html += `</div>`;
+            });
+
+            html += `
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Value (POT)</label>
+                        <input type="number" id="deploy-value" value="0" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Gas Limit</label>
+                        <input type="number" id="deploy-gas" value="50000000000" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Storage Deposit</label>
+                        <input type="number" id="deploy-storage" value="0" min="0">
+                    </div>
+                </div>
+                <button class="btn btn-primary" onclick="deployContract()" style="width: 100%;">Deploy Contract</button>
+            `;
+
+            form.innerHTML = html;
+
+            document.getElementById('deploy-constructor').addEventListener('change', (e) => {
+                constructors.forEach((_, i) => {
+                    document.getElementById(`ctor-args-${i}`).style.display = i === parseInt(e.target.value) ? 'block' : 'none';
+                });
+            });
+        }
+
+        async function deployContract() {
+            const signerName = document.getElementById('deploy-signer').value;
+            const ctorIndex = document.getElementById('deploy-constructor').value;
+            const constructor = contractAbi.spec.constructors[ctorIndex];
+            const signer = keyring.getPair(signerName);
+
+            const args = constructor.args.map(arg => {
+                const input = document.getElementById(`ctor-arg-${ctorIndex}-${arg.label}`);
+                return parseArg(input.value, arg.type);
+            });
+
+            const value = document.getElementById('deploy-value').value;
+            const gasLimit = document.getElementById('deploy-gas').value;
+            const storageDeposit = document.getElementById('deploy-storage').value;
+
+            try {
+                const { ContractPromise } = window['polkadot-api-contract'];
+                const contract = new ContractPromise(api, contractAbi, null);
+                
+                const { gasRequired, storageDeposit, result } = await contract.tx[constructor.label](
+                    { gasLimit, storageDepositLimit: storageDeposit, value: value * 10**14 },
+                    ...args
+                ).signAndSend(signer);
+
+                if (result.isError) {
+                    alert('Deployment failed: ' + result.asError);
+                    return;
+                }
+
+                const address = result.asSuccess.contractAddress.toString();
+                deployedContracts.push({ address, abi: contractAbi, name: contractAbi.spec.name || 'Unnamed' });
+                renderDeployedContracts();
+                alert(`Contract deployed at: ${address}`);
+            } catch (e) {
+                alert('Deployment error: ' + e.message);
+            }
+        }
+
+        function parseArg(value, type) {
+            const name = type.displayName[0] || type.type;
+            if (name === 'AccountId') return value;
+            if (name === 'Balance' || name === 'u128' || name === 'u64' || name === 'u32') return value;
+            if (name === 'bool') return value === 'true';
+            if (name === 'String') return value;
+            return value;
+        }
+
+        function renderDeployedContracts() {
+            const list = document.getElementById('deployed-list');
+            if (deployedContracts.length === 0) {
+                list.innerHTML = '<p style="color: var(--text-secondary);">No contracts deployed yet.</p>';
+                return;
+            }
+
+            list.innerHTML = deployedContracts.map((c, i) => `
+                <div class="deployed-item ${activeContract === c ? 'active' : ''}" onclick="selectContract(${i})">
+                    <div>
+                        <div style="font-weight: 600;">${c.name}</div>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); font-family: monospace;">${c.address.slice(0, 12)}...${c.address.slice(-8)}</div>
+                    </div>
+                    <span style="color: var(--brand-orange);">▼</span>
+                </div>
+            `).join('');
+        }
+
+        function selectContract(index) {
+            activeContract = deployedContracts[index];
+            renderDeployedContracts();
+            renderContractInteraction();
+        }
+
+        function renderContractInteraction() {
+            const section = document.getElementById('interact-section');
+            const methodList = document.getElementById('method-list');
+            section.style.display = 'block';
+
+            const { ContractPromise } = window['polkadot-api-contract'];
+            const contract = new ContractPromise(api, activeContract.abi, activeContract.address);
+            const messages = activeContract.abi.spec.messages;
+
+            methodList.innerHTML = messages.map(msg => `
+                <div class="method-card">
+                    <h4>
+                        ${msg.label}
+                        <span class="method-type ${msg.mutates ? 'write' : 'read'}">${msg.mutates ? 'Write' : 'Read'}</span>
+                    </h4>
+                    <div class="method-args">
+                        ${msg.args.map(arg => `
+                            <input type="text" id="msg-arg-${msg.label}-${arg.label}" placeholder="${arg.label} (${arg.type.displayName})">
+                        `).join('')}
+                        <button class="btn ${msg.mutates ? 'btn-primary' : 'btn-secondary'}" onclick="callMethod('${msg.label}', ${msg.mutates})">
+                            ${msg.mutates ? 'Execute' : 'Call'}
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function callMethod(label, isWrite) {
+            if (!activeContract) return;
+            const { ContractPromise } = window['polkadot-api-contract'];
+            const contract = new ContractPromise(api, activeContract.abi, activeContract.address);
+            const msg = activeContract.abi.spec.messages.find(m => m.label === label);
+            
+            const args = msg.args.map(arg => {
+                const input = document.getElementById(`msg-arg-${label}-${arg.label}`);
+                return parseArg(input.value, arg.type);
+            });
+
+            try {
+                if (isWrite) {
+                    const signer = keyring.getPair('Alice');
+                    const result = await contract.tx[label]({ gasLimit: 50000000000 }, ...args).signAndSend(signer);
+                    alert('Transaction submitted');
+                } else {
+                    const result = await contract.query[label](activeContract.address, ...args);
+                    alert('Result: ' + JSON.stringify(result.output));
+                }
+            } catch (e) {
+                alert('Call error: ' + e.message);
+            }
+        }
+
+        // Lazy init API when contracts tab is opened
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', async () => {
+                if (tab.dataset.tab === 'contracts' && !api) {
+                    await initPolkadotApi();
+                }
+            });
+        });
     </script>
 </body>
 </html>
