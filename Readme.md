@@ -117,4 +117,4 @@ Portaldot is actively evolving. Here's what's on the horizon:
 
 Portaldot is built for developers who refuse to let tooling slow them down. If you're shipping ink! contracts, this is your new baseline.
 
-[Explore the templates](templates/) · [Read the architecture](structure.md) · [Contribute](https://github.com/AlphaTechini/Portaldot-Dev-Suite)
+[Explore the templates](templates/) · [Read the architecture](structure.md) · [Contribute](CONTRIBUTING.md)
