@@ -5,6 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Portaldot DevSuite Dashboard</title>
     <link rel="icon" href="portaldot-logo.png" type="image/png">
+    <script type="module">
+        import { ApiPromise, WsProvider } from 'https://esm.sh/@polkadot/api@10.13.1?bundle';
+        import { Keyring } from 'https://esm.sh/@polkadot/keyring@12.6.2?bundle';
+        import { ContractPromise } from 'https://esm.sh/@polkadot/api-contract@10.13.1?bundle';
+
+        window.polkadotApi = { ApiPromise, WsProvider, Keyring, ContractPromise };
+    </script>
     <style>
         :root {
             --bg-primary: #0f0f12;
@@ -1079,10 +1086,6 @@ mod oracle {
         connect();
     </script>
 
-    <script src="https://unpkg.com/@polkadot/api@10.13.1/bundle-polkadot-api.js"></script>
-    <script src="https://unpkg.com/@polkadot/api-contract@10.13.1/bundle-polkadot-api-contract.js"></script>
-    <script src="https://unpkg.com/@polkadot/keyring@12.6.2/bundle-polkadot-keyring.js"></script>
-
     <script>
         let api = null;
         let keyring = null;
@@ -1096,11 +1099,18 @@ mod oracle {
             panel.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading Polkadot API...</p></div>';
             
             try {
-                // Wait for scripts to load
-                await new Promise(r => setTimeout(r, 500));
+                // Wait for ES module to load
+                let attempts = 0;
+                while (!window.polkadotApi && attempts < 20) {
+                    await new Promise(r => setTimeout(r, 500));
+                    attempts++;
+                }
                 
-                const { ApiPromise, WsProvider } = window['polkadot-api'];
-                const { Keyring } = window['polkadot-keyring'];
+                if (!window.polkadotApi) {
+                    throw new Error('Polkadot API failed to load');
+                }
+                
+                const { ApiPromise, WsProvider, Keyring } = window.polkadotApi;
                 
                 const provider = new WsProvider(WS_URL);
                 api = await ApiPromise.create({ provider });
@@ -1261,7 +1271,7 @@ mod oracle {
             const storageDeposit = document.getElementById('deploy-storage').value;
 
             try {
-                const { ContractPromise } = window['polkadot-api-contract'];
+                const { ContractPromise } = window.polkadotApi;
                 const contract = new ContractPromise(api, contractAbi, null);
                 
                 const { gasRequired, storageDeposit, result } = await contract.tx[constructor.label](
@@ -1321,7 +1331,7 @@ mod oracle {
             const methodList = document.getElementById('method-list');
             section.style.display = 'block';
 
-            const { ContractPromise } = window['polkadot-api-contract'];
+            const { ContractPromise } = window.polkadotApi;
             const contract = new ContractPromise(api, activeContract.abi, activeContract.address);
             const messages = activeContract.abi.spec.messages;
 
@@ -1345,7 +1355,7 @@ mod oracle {
 
         async function callMethod(label, isWrite) {
             if (!activeContract) return;
-            const { ContractPromise } = window['polkadot-api-contract'];
+            const { ContractPromise } = window.polkadotApi;
             const contract = new ContractPromise(api, activeContract.abi, activeContract.address);
             const msg = activeContract.abi.spec.messages.find(m => m.label === label);
             
