@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 import { spawn, execSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync, createWriteStream } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { platform, arch } from "node:os";
-import { get } from "node:https";
 import { pipeline } from "node:stream/promises";
+import { createWriteStream } from "node:fs";
+import { get } from "node:https";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BIN_DIR = join(__dirname, "bin");
@@ -27,20 +28,13 @@ const RELEASES = {
     arm64: "https://github.com/paritytech/substrate-contracts-node/releases/download/v0.9.0/substrate-contracts-node-mac.tar.gz",
   },
   win32: {
-    x64: null, // No official Windows binary for v0.9.0
+    x64: null,
   },
 };
 
-function log(msg) {
-  console.log(`\x1b[32m✓\x1b[0m ${msg}`);
-}
-function warn(msg) {
-  console.log(`\x1b[33m⚠\x1b[0m ${msg}`);
-}
-function err(msg) {
-  console.error(`\x1b[31m✗\x1b[0m ${msg}`);
-  process.exit(1);
-}
+function log(msg) { console.log(`\x1b[32m✓\x1b[0m ${msg}`); }
+function warn(msg) { console.log(`\x1b[33m⚠\x1b[0m ${msg}`); }
+function err(msg) { console.error(`\x1b[31m✗\x1b[0m ${msg}`); process.exit(1); }
 
 function getPlatform() {
   const os = platform();
@@ -95,9 +89,7 @@ async function ensureBinary() {
   if (existsSync(bin)) return bin;
 
   const url = RELEASES[os]?.[arch];
-  if (!url) {
-    err(`No pre-built binary for ${os}/${arch}. Please build from source or use WSL/Docker.`);
-  }
+  if (!url) err(`No pre-built binary for ${os}/${arch}. Please build from source or use WSL/Docker.`);
 
   mkdirSync(dir, { recursive: true });
   await downloadBinary(url, bin);
@@ -108,13 +100,7 @@ function getPid(name) {
   const p = join(PID_DIR, `${name}.pid`);
   if (!existsSync(p)) return null;
   const pid = parseInt(readFileSync(p, "utf8").trim());
-  try {
-    process.kill(pid, 0);
-    return pid;
-  } catch {
-    rmSync(p);
-    return null;
-  }
+  try { process.kill(pid, 0); return pid; } catch { rmSync(p); return null; }
 }
 
 function savePid(name, pid) {
@@ -122,15 +108,37 @@ function savePid(name, pid) {
   writeFileSync(join(PID_DIR, `${name}.pid`), String(pid));
 }
 
+function waitForPort(child, timeout = 30000) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("Node startup timed out")), timeout);
+
+    const check = (data) => {
+      const text = data.toString();
+      // "Listening for new connections on 0.0.0.0:9944." or "Listening for new connections on 0.0.0.0:33673."
+      const match = text.match(/Listening for new connections on [\d.]+:(\d+)/);
+      if (match) {
+        clearTimeout(timer);
+        resolve(parseInt(match[1]));
+      }
+    };
+
+    child.stdout.on("data", check);
+    child.stderr.on("data", check);
+  });
+}
+
 async function cmdUp() {
-  const { wsl, platformDir, binName } = getPlatform();
+  const { wsl, platformDir } = getPlatform();
   const bin = await ensureBinary();
   mkdirSync(STATE_DIR, { recursive: true });
+
+  let wsPort = NODE_PORT;
+  let nodeChild = null;
 
   if (getPid("node")) {
     warn("Node already running.");
   } else {
-    log(`Starting Portaldot node on ws://localhost:${NODE_PORT}...`);
+    log(`Starting Portaldot node...`);
 
     const args = [
       "--dev",
@@ -142,33 +150,41 @@ async function cmdUp() {
       "--offchain-worker", "never",
     ];
 
-    let child;
     if (wsl) {
       const wslPath = bin.replace(/\\/g, "/").replace(/^([A-Z]):/, "/mnt/$1").toLowerCase();
-      child = spawn("wsl", [wslPath, ...args], {
+      nodeChild = spawn("wsl", [wslPath, ...args], {
         stdio: ["ignore", "pipe", "pipe"],
-        detached: true,
+        detached: false,
       });
     } else {
-      child = spawn(bin, args, {
+      nodeChild = spawn(bin, args, {
         stdio: ["ignore", "pipe", "pipe"],
-        detached: true,
+        detached: false,
       });
     }
 
-    child.stdout.on("data", (d) => process.stdout.write(d));
-    child.stderr.on("data", (d) => process.stderr.write(d));
-    child.unref();
-    savePid("node", child.pid);
-  }
+    try {
+      wsPort = await waitForPort(nodeChild);
+    } catch (e) {
+      warn(`Node startup warning: ${e.message}`);
+    }
 
-  await new Promise((r) => setTimeout(r, 2000));
+    nodeChild.stdout.on("data", (d) => process.stdout.write(d));
+    nodeChild.stderr.on("data", (d) => process.stderr.write(d));
+    nodeChild.unref();
+    savePid("node", nodeChild.pid);
+  }
 
   if (getPid("server")) {
     warn("Dashboard server already running.");
   } else {
     log(`Starting dashboard on http://localhost:${DASHBOARD_PORT}...`);
-    const child = spawn("node", [join(SERVER_DIR, "server.cjs"), DASHBOARD_DIR, String(DASHBOARD_PORT)], {
+    const child = spawn("node", [
+      join(SERVER_DIR, "server.cjs"),
+      DASHBOARD_DIR,
+      String(DASHBOARD_PORT),
+      String(wsPort),
+    ], {
       stdio: "inherit",
       detached: true,
     });
@@ -177,7 +193,7 @@ async function cmdUp() {
   }
 
   log(`\nPortaldot DevSuite is running!`);
-  log(`  RPC/WS: ws://localhost:${NODE_PORT}`);
+  log(`  RPC/WS: ws://localhost:${wsPort}`);
   log(`  Dashboard: http://localhost:${DASHBOARD_PORT}`);
 }
 
@@ -185,7 +201,6 @@ function cmdDown() {
   const isWin = platform() === "win32";
 
   if (isWin) {
-    // Kill WSL node process by name
     try {
       execSync("wsl -e pkill -f polkadot 2>/dev/null || true", { stdio: "ignore" });
       log("Stopped node (WSL)");

@@ -6,7 +6,7 @@ const os = require("os");
 
 const dashboardDir = process.argv[2] || path.join(__dirname, "..", "dashboard");
 const port = parseInt(process.argv[3], 10) || 3000;
-const nodePort = 9944;
+const nodePort = parseInt(process.argv[4], 10) || 9944;
 
 function detectWsUrl() {
     try {
