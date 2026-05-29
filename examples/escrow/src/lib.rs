@@ -11,11 +11,8 @@ mod escrow {
         state: EscrowState,
     }
 
-    #[derive(scale::Encode, scale::Decode, PartialEq, Eq)]
-    #[cfg_attr(
-        feature = "std",
-        derive(scale_info::TypeInfo, ink::storage::traits::StorageTypeTrait)
-    )]
+    #[ink::scale_derive(Encode, Decode, TypeInfo)]
+    #[derive(PartialEq, Eq)]
     pub enum EscrowState {
         AwaitingPayment,
         AwaitingApproval,
