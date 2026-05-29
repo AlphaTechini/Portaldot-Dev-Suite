@@ -8,9 +8,10 @@
     <script type="module">
         import { ApiPromise, WsProvider } from 'https://esm.sh/@polkadot/api@10.13.1?bundle';
         import { Keyring } from 'https://esm.sh/@polkadot/keyring@12.6.2?bundle';
-        import { ContractPromise } from 'https://esm.sh/@polkadot/api-contract@10.13.1?bundle';
+        import { mnemonicGenerate } from 'https://esm.sh/@polkadot/util-crypto@12.6.2?bundle';
 
-        window.polkadotApi = { ApiPromise, WsProvider, Keyring, ContractPromise };
+        window.polkadotApi = { ApiPromise, WsProvider, Keyring };
+        window.polkadotUtils = { mnemonicGenerate };
     </script>
     <style>
         :root {
@@ -115,6 +116,8 @@
         .btn-primary:hover { background: var(--brand-orange-light); }
         .btn-secondary { background: var(--bg-hover); color: var(--text-primary); border: 1px solid var(--border-color); }
         .btn-secondary:hover { border-color: var(--brand-orange); }
+        .btn-danger { background: rgba(239, 68, 68, 0.1); color: var(--error); border: 1px solid var(--error); }
+        .btn-danger:hover { background: rgba(239, 68, 68, 0.25); }
         
         /* Transfer Modal */
         .modal-overlay {
@@ -179,6 +182,7 @@
         .deploy-form .form-row { display: flex; gap: 1rem; align-items: end; }
         .deploy-form .form-group { flex: 1; }
         .deploy-form .form-group label { display: block; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem; }
+        .deploy-form .form-group .hint { font-size: 0.72rem; color: var(--text-secondary); opacity: 0.7; margin-top: 0.15rem; }
         .deploy-form .form-group input, .deploy-form .form-group select {
             width: 100%; padding: 0.5rem; background: var(--bg-primary);
             border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary);
@@ -220,6 +224,61 @@
         
         .footer { text-align: center; padding: 2rem 0; color: var(--text-secondary); font-size: 0.85rem; border-top: 1px solid var(--border-color); margin-top: 2rem; }
         .footer a { color: var(--brand-orange); text-decoration: none; }
+
+        /* Faucet */
+        .faucet-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+        @media (max-width: 768px) { .faucet-layout { grid-template-columns: 1fr; } }
+        .faucet-card {
+            background: var(--bg-card); border: 1px solid var(--border-color);
+            border-radius: 8px; padding: 1.5rem;
+        }
+        .faucet-card h3 { color: var(--brand-orange); margin-bottom: 0.75rem; font-size: 1.1rem; }
+        .faucet-card .desc { color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1rem; }
+        .faucet-card input {
+            width: 100%; padding: 0.6rem; background: var(--bg-primary);
+            border: 1px solid var(--border-color); border-radius: 6px;
+            color: var(--text-primary); font-size: 0.9rem; margin-bottom: 0.75rem;
+            font-family: monospace;
+        }
+        .faucet-card input:focus { border-color: var(--brand-orange); outline: none; }
+        .faucet-card .btn { width: 100%; margin-bottom: 0.5rem; }
+        .faucet-result {
+            display: none; margin-top: 1rem; padding: 1rem;
+            background: var(--bg-primary); border: 1px solid var(--border-color);
+            border-radius: 6px;
+        }
+        .faucet-result.visible { display: block; }
+        .faucet-result .label { font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem; }
+        .faucet-result .address { font-family: monospace; font-size: 0.85rem; word-break: break-all; color: var(--brand-orange); margin-bottom: 0.5rem; }
+        .faucet-result .amount { color: var(--success); font-weight: 600; margin-bottom: 0.75rem; }
+        .faucet-divider {
+            display: flex; align-items: center; justify-content: center;
+            color: var(--text-secondary); font-size: 0.85rem; padding: 0.5rem 0;
+        }
+        .faucet-divider::before, .faucet-divider::after {
+            content: ''; flex: 1; border-top: 1px solid var(--border-color); margin: 0 0.75rem;
+        }
+        .faucet-note {
+            margin-top: 1rem; padding: 0.75rem; font-size: 0.8rem;
+            background: rgba(234, 179, 8, 0.1); border: 1px solid rgba(234, 179, 8, 0.3);
+            border-radius: 6px; color: var(--text-secondary);
+        }
+
+        /* Toast */
+        .toast-container {
+            position: fixed; top: 1rem; right: 1rem; z-index: 999;
+            display: flex; flex-direction: column; gap: 0.5rem;
+        }
+        .toast {
+            padding: 0.75rem 1.25rem; border-radius: 8px; font-size: 0.9rem;
+            font-weight: 500; min-width: 280px;
+            animation: slideIn 0.3s ease, fadeOut 0.3s ease 3.7s forwards;
+        }
+        .toast.success { background: rgba(34, 197, 94, 0.15); border: 1px solid var(--success); color: var(--success); }
+        .toast.error { background: rgba(239, 68, 68, 0.15); border: 1px solid var(--error); color: var(--error); }
+        .toast.info { background: rgba(234, 179, 8, 0.15); border: 1px solid var(--warning); color: var(--warning); }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
     </style>
 </head>
 <body>
@@ -264,6 +323,7 @@
             <div class="tabs">
                 <button class="tab active" data-tab="blocks">Blocks</button>
                 <button class="tab" data-tab="accounts">Accounts</button>
+                <button class="tab" data-tab="faucet">Faucet</button>
                 <button class="tab" data-tab="contracts">Contracts</button>
                 <button class="tab" data-tab="templates">Templates</button>
             </div>
@@ -280,9 +340,72 @@
                 </div>
             </div>
 
+            <div id="tab-faucet" class="tab-content">
+                <div class="faucet-layout">
+                    <div class="faucet-card">
+                        <h3>Get Dev POT</h3>
+                        <p class="desc">Paste an address below to fund it with 500 testnet POT. One request per address every 5 hours.</p>
+                        <input type="text" id="faucet-address" placeholder="Paste an SS58 address (e.g. 5Grw...)">
+                        <button class="btn btn-primary" id="faucet-fund-btn" onclick="faucetFundAddress()">Fund Address</button>
+                        <div class="faucet-result" id="faucet-fund-result">
+                            <div class="label">Funded</div>
+                            <div class="address" id="faucet-fund-addr"></div>
+                            <div class="amount" id="faucet-fund-amount"></div>
+                            <button class="btn btn-secondary" onclick="copyAddress(document.getElementById('faucet-fund-addr').textContent)" style="width:auto">Copy Address</button>
+                        </div>
+                    </div>
+                    <div class="faucet-card">
+                        <h3>Create & Fund</h3>
+                        <p class="desc">Don't have an address? Generate a new keypair, name it, and fund it with 500 POT in one step.</p>
+                        <input type="text" id="faucet-name" placeholder="Account name (e.g. My Dev Wallet)">
+                        <button class="btn btn-primary" id="faucet-generate-btn" onclick="faucetGenerateAndFund()">Generate New Address and Fund</button>
+                        <div class="faucet-result" id="faucet-generate-result">
+                            <div class="label">New Account Created & Funded</div>
+                            <div class="address" id="faucet-generate-addr"></div>
+                            <div class="amount" id="faucet-generate-amount"></div>
+                            <div class="actions" style="display:flex;gap:0.5rem;">
+                                <button class="btn btn-secondary" onclick="copyAddress(document.getElementById('faucet-generate-addr').textContent)">Copy Address</button>
+                            </div>
+                        </div>
+                        <div class="faucet-note">
+                            The secret key is stored in-memory for this session only. For long-term use, export the mnemonic or JSON backup via Polkadot-JS extension.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div id="tab-contracts" class="tab-content">
                 <div id="contracts-panel">
-                    <div class="loading">Connecting to node for contract support...</div>
+                    <div class="contract-section">
+                        <h3>Upload Contract (.contract)</h3>
+                        <div class="upload-zone" id="upload-zone">
+                            <p>Drag & drop your compiled .contract file here</p>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary);">or click to browse</p>
+                            <input type="file" id="contract-file" accept=".contract,.json,.wasm" style="display: none;">
+                        </div>
+                    </div>
+                    <div id="deploy-section" style="display: none;">
+                        <div class="contract-section">
+                            <h3>Deploy Contract</h3>
+                            <div class="deploy-form" id="deploy-form"></div>
+                        </div>
+                    </div>
+                    <div class="contract-section">
+                        <h3>Deployed Contracts</h3>
+                        <div id="deployed-list" class="deployed-list">
+                            <p style="color: var(--text-secondary);">No contracts deployed yet.</p>
+                        </div>
+                    </div>
+                    <div id="interact-section" style="display: none;">
+                        <div class="contract-section">
+                            <h3>Interact</h3>
+                            <div id="method-list" class="method-list"></div>
+                        </div>
+                        <div class="contract-section">
+                            <h3>Events</h3>
+                            <div id="event-log" class="event-log">Waiting for events...</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -319,14 +442,18 @@
         </div>
     </div>
 
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
     <script>
         const WS_URL = '__WS_URL__';
+        const ALICE = { name: 'Alice', address: '5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY' };
         const DEV_ACCOUNTS = [
-            { name: 'Alice', address: '5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY' },
             { name: 'Bob', address: '5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty' },
             { name: 'Charlie', address: '5FLSigC9HGRKVhB9FiEo4Y3koPsNmBmLJbpXg2mp1hXcS59Y' },
             { name: 'Dave', address: '5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy' },
-            { name: 'Eve', address: '5HGjWAeFDfFCWPsjFQdVV2Msvz2XtMktvgocEZcCj68kUMaw' }
+            { name: 'Eve', address: '5HGjWAeFDfFCWPsjFQdVV2Msvz2XtMktvgocEZcCj68kUMaw' },
+            { name: 'Ferdie', address: '5CiPPseXPECbkjWCa6MnjNokrgYjMqmKndv2rSnekmSK2DjL' }
         ];
 
         const TEMPLATES = [
@@ -810,6 +937,40 @@ mod oracle {
         let blockSubscription = null;
         let blocks = [];
 
+        const NAMED_ACCOUNTS_KEY = 'portaldot_named_accounts';
+        let namedAccounts = [];
+
+        function loadNamedAccounts() {
+            try { namedAccounts = JSON.parse(localStorage.getItem(NAMED_ACCOUNTS_KEY) || '[]'); }
+            catch { namedAccounts = []; }
+        }
+        function saveNamedAccounts() {
+            localStorage.setItem(NAMED_ACCOUNTS_KEY, JSON.stringify(namedAccounts));
+        }
+        function addNamedAccount(name, address) {
+            if (namedAccounts.find(a => a.name === name || a.address === address)) return false;
+            namedAccounts.push({ name, address });
+            saveNamedAccounts();
+            return true;
+        }
+
+        function deleteNamedAccount(name) {
+            namedAccounts = namedAccounts.filter(a => a.name !== name);
+            saveNamedAccounts();
+            updateAccounts();
+            showToast(`Account "${name}" deleted.`, 'info');
+        }
+
+        function showToast(msg, type) {
+            type = type || 'info';
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = msg;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        }
+
         function rpc(method, params = []) {
             return new Promise((resolve, reject) => {
                 const id = ++rpcId;
@@ -843,34 +1004,45 @@ mod oracle {
         async function updateAccounts() {
             const grid = document.getElementById('accounts-grid');
             grid.innerHTML = '';
-            
-            for (const acc of DEV_ACCOUNTS) {
-                try {
-                    const nonce = await rpc('system_accountNextIndex', [acc.address]);
-                    grid.innerHTML += `
-                        <div class="account-card">
-                            <div class="name">${acc.name}</div>
-                            <div class="address">${acc.address}</div>
-                            <div class="balance">1,000,000,000,000,000 POT</div>
-                            <div class="actions">
-                                <button class="btn btn-primary" onclick="openTransfer('${acc.name}')">Send</button>
-                                <button class="btn btn-secondary" onclick="copyAddress('${acc.address}')">Copy Address</button>
-                            </div>
-                        </div>
-                    `;
-                } catch (e) {
-                    grid.innerHTML += `
-                        <div class="account-card">
-                            <div class="name">${acc.name}</div>
-                            <div class="address">${acc.address}</div>
-                            <div class="balance">1,000,000,000,000,000 POT</div>
-                            <div class="actions">
-                                <button class="btn btn-primary" onclick="openTransfer('${acc.name}')">Send</button>
-                                <button class="btn btn-secondary" onclick="copyAddress('${acc.address}')">Copy Address</button>
-                            </div>
-                        </div>
-                    `;
+            const allAccounts = [...DEV_ACCOUNTS, ...namedAccounts];
+
+            for (const acc of allAccounts) {
+                const isNamed = namedAccounts.find(n => n.address === acc.address);
+                const tag = isNamed ? '<span style="font-size:0.7rem;color:var(--brand-orange);margin-left:0.5rem;padding:0.1rem 0.4rem;border:1px solid var(--brand-orange);border-radius:4px;">Custom</span>' : '';
+                let balanceDisplay = 'Loading...';
+
+                if (api && api.query && api.query.system) {
+                    try {
+                        const { data } = await api.query.system.account(acc.address);
+                        const free = data.free.toBigInt();
+                        const pot = Number(free) / 1e14;
+                        balanceDisplay = pot.toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' POT';
+                    } catch {
+                        balanceDisplay = isNamed ? '— POT' : '1,000,000,000,000,000 POT';
+                    }
+                } else {
+                    try {
+                        await rpc('system_accountNextIndex', [acc.address]);
+                        balanceDisplay = isNamed ? 'Querying... POT' : '1,000,000,000,000,000 POT';
+                    } catch {
+                        balanceDisplay = '— POT';
+                    }
                 }
+
+                const deleteBtn = isNamed ? `<button class="btn btn-danger" onclick="deleteNamedAccount('${acc.name.replace(/'/g, "\\'")}')">Delete</button>` : '';
+
+                grid.innerHTML += `
+                    <div class="account-card">
+                        <div class="name">${acc.name}${tag}</div>
+                        <div class="address">${acc.address}</div>
+                        <div class="balance">${balanceDisplay}</div>
+                        <div class="actions">
+                            <button class="btn btn-primary" onclick="openTransfer('${acc.name}')">Send</button>
+                            <button class="btn btn-secondary" onclick="copyAddress('${acc.address}')">Copy Address</button>
+                            ${deleteBtn}
+                        </div>
+                    </div>
+                `;
             }
         }
 
@@ -945,42 +1117,29 @@ mod oracle {
             document.querySelector('[data-tab="contracts"]').classList.add('active');
             document.getElementById('tab-contracts').classList.add('active');
             
-            const panel = document.getElementById('contracts-panel');
-            panel.innerHTML = `
-                <div class="contract-section">
-                    <h3>Deploy: ${TEMPLATES[i].name}</h3>
-                    <div class="upload-zone" style="border-color: var(--brand-orange); background: rgba(255, 102, 0, 0.05); text-align: left; padding: 1.5rem;">
-                        <p style="font-weight: 600; margin-bottom: 0.5rem;">✅ Code copied to clipboard!</p>
-                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
-                            Follow these steps to deploy:
-                        </p>
-                        <ol style="font-size: 0.85rem; color: var(--text-secondary); padding-left: 1.5rem; line-height: 1.8;">
-                            <li>Create a new Rust project: <code>cargo contract new my-contract</code></li>
-                            <li>Replace <code>src/lib.rs</code> with the copied code</li>
-                            <li>Ensure <code>Cargo.toml</code> uses <code>ink = "4.3.0"</code></li>
-                            <li>Build: <code>cargo contract build</code></li>
-                            <li>Upload the generated <code>target/ink/my-contract.contract</code> file below</li>
-                        </ol>
-                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 1rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
-                            📚 <strong>Learn more:</strong><br>
-                            <a href="https://use.ink/" target="_blank" style="color: var(--brand-orange);">ink! Documentation</a> &bull;
-                            <a href="https://use.ink/basics/contract-deployment" target="_blank" style="color: var(--brand-orange);">Deployment Guide</a> &bull;
-                            <a href="https://docs.substrate.io/reference/smart-contracts/" target="_blank" style="color: var(--brand-orange);">Substrate Contracts Reference</a>
-                        </p>
-                    </div>
-                </div>
-                <div class="contract-section">
-                    <h3>Upload Compiled Contract</h3>
-                    <div class="upload-zone" id="upload-zone">
-                        <p>Drag & drop your .contract file here</p>
-                        <input type="file" id="contract-file" accept=".contract,.json" style="display: none;">
-                    </div>
-                </div>
+            const zone = document.getElementById('upload-zone');
+            zone.innerHTML = `
+                <p style="font-weight: 600; margin-bottom: 0.5rem; color: var(--brand-orange);">✅ ${TEMPLATES[i].name} code copied to clipboard!</p>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
+                    Follow these steps to compile & deploy:
+                </p>
+                <ol style="font-size: 0.85rem; color: var(--text-secondary); padding-left: 1.5rem; line-height: 1.8; text-align: left; margin-bottom: 1rem;">
+                    <li>Create a new Rust project: <code>cargo contract new my-contract</code></li>
+                    <li>Replace <code>src/lib.rs</code> with the copied code</li>
+                    <li>Ensure <code>Cargo.toml</code> uses <code>ink = "4.3.0"</code></li>
+                    <li>Build: <code>cargo contract build</code></li>
+                    <li>Upload the generated <code>target/ink/my-contract.contract</code> file below</li>
+                </ol>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.5rem; border-top: 1px solid var(--border-color); padding-top: 0.75rem;">
+                    📚 <a href="https://use.ink/" target="_blank" style="color: var(--brand-orange);">ink! Docs</a> &bull;
+                    <a href="https://use.ink/basics/contract-deployment" target="_blank" style="color: var(--brand-orange);">Deployment Guide</a>
+                </p>
+                <input type="file" id="contract-file" accept=".contract,.json,.wasm" style="display: none;">
             `;
+            zone.style.borderColor = 'var(--brand-orange)';
+            zone.style.background = 'rgba(255, 102, 0, 0.05)';
             
-            setTimeout(() => {
-                if (typeof setupUploadHandlers === 'function') setupUploadHandlers();
-            }, 100);
+            setupUploadHandlers();
         }
 
         function toggleTemplate(i) {
@@ -1002,9 +1161,10 @@ mod oracle {
             const modal = document.getElementById('transfer-modal');
             const fromSelect = document.getElementById('transfer-from');
             const toSelect = document.getElementById('transfer-to');
+            const allAccounts = [...DEV_ACCOUNTS, ...namedAccounts];
             
-            fromSelect.innerHTML = DEV_ACCOUNTS.map(a => `<option value="${a.address}" ${a.name === fromName ? 'selected' : ''}>${a.name}</option>`).join('');
-            toSelect.innerHTML = DEV_ACCOUNTS.filter(a => a.name !== fromName).map(a => `<option value="${a.address}">${a.name}</option>`).join('');
+            fromSelect.innerHTML = allAccounts.map(a => `<option value="${a.address}" ${a.name === fromName ? 'selected' : ''}>${a.name}</option>`).join('');
+            toSelect.innerHTML = allAccounts.filter(a => a.name !== fromName).map(a => `<option value="${a.address}">${a.name}</option>`).join('');
             
             modal.classList.add('open');
         }
@@ -1022,9 +1182,25 @@ mod oracle {
                 alert('Enter a valid amount');
                 return;
             }
-            
+
+            if (!api) {
+                await initPolkadotApi();
+                if (!api) { alert('API not available. Try again.'); return; }
+            }
+
             closeModal();
-            alert(`Transfer initiated: ${amount} POT from ${DEV_ACCOUNTS.find(a => a.address === from)?.name} to ${DEV_ACCOUNTS.find(a => a.address === to)?.name}\n\nNote: Actual execution requires signing with the account key.`);
+
+            try {
+                const fromPair = keyring.getPair(from);
+                if (!fromPair) { alert('Could not find signing key for sender'); return; }
+                const planck = BigInt(Math.floor(parseFloat(amount) * 1e14)).toString();
+                const tx = api.tx.balances.transfer(to, planck);
+                await sendAndWait(tx, fromPair);
+                showToast(`Transfer of ${amount} POT successful!`, 'success');
+                updateAccounts();
+            } catch (e) {
+                showToast('Transfer failed: ' + e.message, 'error');
+            }
         }
 
         // Tabs
@@ -1039,6 +1215,7 @@ mod oracle {
 
         function connect() {
             document.getElementById("ws-url-display").textContent = WS_URL;
+            loadNamedAccounts();
             ws = new WebSocket(WS_URL);
             
             ws.onopen = async () => {
@@ -1056,6 +1233,7 @@ mod oracle {
                 
                 // Initialize Polkadot API for contracts
                 if (!api) initPolkadotApi();
+                setupUploadHandlers();
             };
 
             ws.onmessage = async (e) => {
@@ -1102,67 +1280,28 @@ mod oracle {
         let contractAbi = null;
 
         async function initPolkadotApi() {
-            const panel = document.getElementById('contracts-panel');
-            panel.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading Polkadot API...</p></div>';
-            
+            if (api) return; // already connected
             try {
-                // Wait for ES module to load
                 let attempts = 0;
                 while (!window.polkadotApi && attempts < 20) {
                     await new Promise(r => setTimeout(r, 500));
                     attempts++;
                 }
-                
                 if (!window.polkadotApi) {
-                    throw new Error('Polkadot API failed to load');
+                    throw new Error('API failed to load');
                 }
-                
                 const { ApiPromise, WsProvider, Keyring } = window.polkadotApi;
-                
                 const provider = new WsProvider(WS_URL);
                 api = await ApiPromise.create({ provider });
-                
                 keyring = new Keyring({ type: 'sr25519' });
+                keyring.addFromUri(`//${ALICE.name}`, { name: ALICE.name }, 'sr25519');
                 DEV_ACCOUNTS.forEach(acc => {
                     keyring.addFromUri(`//${acc.name}`, { name: acc.name }, 'sr25519');
                 });
-
-                panel.innerHTML = `
-                    <div class="contract-section">
-                        <h3>Upload Contract (.contract)</h3>
-                        <div class="upload-zone" id="upload-zone">
-                            <p>Drag & drop your compiled .contract file here</p>
-                            <p style="font-size: 0.85rem; color: var(--text-secondary);">or click to browse</p>
-                            <input type="file" id="contract-file" accept=".contract,.json" style="display: none;">
-                        </div>
-                    </div>
-                    <div id="deploy-section" style="display: none;">
-                        <div class="contract-section">
-                            <h3>Deploy Contract</h3>
-                            <div class="deploy-form" id="deploy-form"></div>
-                        </div>
-                    </div>
-                    <div class="contract-section">
-                        <h3>Deployed Contracts</h3>
-                        <div id="deployed-list" class="deployed-list">
-                            <p style="color: var(--text-secondary);">No contracts deployed yet.</p>
-                        </div>
-                    </div>
-                    <div id="interact-section" style="display: none;">
-                        <div class="contract-section">
-                            <h3>Interact</h3>
-                            <div id="method-list" class="method-list"></div>
-                        </div>
-                        <div class="contract-section">
-                            <h3>Events</h3>
-                            <div id="event-log" class="event-log">Waiting for events...</div>
-                        </div>
-                    </div>
-                `;
-
-                setupUploadHandlers();
+                showToast('Connected to local node', 'success');
+                updateAccounts();
             } catch (e) {
-                panel.innerHTML = `<div class="loading" style="color: var(--error);">Failed to connect: ${e.message}</div>`;
+                showToast('Node connection failed: ' + e.message, 'error');
                 console.error(e);
             }
         }
@@ -1192,6 +1331,10 @@ mod oracle {
                     contractCode = data.source.wasm;
                     contractAbi = data;
                     renderDeployForm();
+                    const zone = document.getElementById('upload-zone');
+                    zone.innerHTML = `<p style="color: var(--success); font-weight: 600;">✅ ${file.name}</p><p style="font-size: 0.8rem; color: var(--text-secondary);">${(file.size / 1024).toFixed(1)} KB — scroll down to deploy</p>`;
+                    zone.style.borderColor = 'var(--success)';
+                    zone.style.background = 'rgba(34, 197, 94, 0.05)';
                 } catch (err) {
                     alert('Invalid contract file: ' + err.message);
                 }
@@ -1210,14 +1353,16 @@ mod oracle {
                     <div class="form-group">
                         <label>Signer</label>
                         <select id="deploy-signer">
-                            ${DEV_ACCOUNTS.map(a => `<option value="${a.name}">${a.name}</option>`).join('')}
+                            ${DEV_ACCOUNTS.map(a => `<option value="${a.address}">${a.name}</option>`).join('')}
                         </select>
+                        <div class="hint">Account paying gas & signing the tx</div>
                     </div>
                     <div class="form-group">
                         <label>Constructor</label>
                         <select id="deploy-constructor">
                             ${constructors.map((c, i) => `<option value="${i}">${c.label}</option>`).join('')}
                         </select>
+                        <div class="hint">Which constructor to invoke</div>
                     </div>
                 </div>
             `;
@@ -1228,7 +1373,8 @@ mod oracle {
                     html += `
                         <div class="form-group">
                             <label>${arg.label} (${arg.type.displayName})</label>
-                            <input type="text" id="ctor-arg-${c.index}-${arg.label}" placeholder="${arg.type.displayName}">
+                            <input type="text" id="ctor-arg-${i}-${arg.label}" placeholder="${arg.type.displayName}">
+                            <div class="hint">Constructor argument</div>
                         </div>
                     `;
                 });
@@ -1240,14 +1386,17 @@ mod oracle {
                     <div class="form-group">
                         <label>Value (POT)</label>
                         <input type="number" id="deploy-value" value="0" min="0">
+                        <div class="hint">POT sent with the constructor call</div>
                     </div>
                     <div class="form-group">
-                        <label>Gas Limit</label>
-                        <input type="number" id="deploy-gas" value="50000000000" min="0">
+                        <label>Gas Limit (×10¹² weight units)</label>
+                        <input type="number" id="deploy-gas" value="1.0" min="0.1" max="2.0" step="0.1">
+                        <div class="hint">Max compute time. Block limit ≈ 2.0</div>
                     </div>
                     <div class="form-group">
-                        <label>Storage Deposit</label>
-                        <input type="number" id="deploy-storage" value="0" min="0">
+                        <label>Storage Deposit (POT, 0 = unlimited)</label>
+                        <input type="number" id="deploy-storage" value="0.5" min="0" step="0.1">
+                        <div class="hint">POT reserved for on-chain state (refundable)</div>
                     </div>
                 </div>
                 <button class="btn btn-primary" onclick="deployContract()" style="width: 100%;">Deploy Contract</button>
@@ -1263,50 +1412,60 @@ mod oracle {
         }
 
         async function deployContract() {
-            const signerName = document.getElementById('deploy-signer').value;
+            if (!contractAbi) { alert('Upload a .contract file first'); return; }
+            const signerAddr = document.getElementById('deploy-signer').value;
             const ctorIndex = document.getElementById('deploy-constructor').value;
             const constructor = contractAbi.spec.constructors[ctorIndex];
-            const signer = keyring.getPair(signerName);
+            const signer = keyring.getPair(signerAddr);
 
-            const args = constructor.args.map(arg => {
+            const argValues = constructor.args.map(arg => {
                 const input = document.getElementById(`ctor-arg-${ctorIndex}-${arg.label}`);
-                return parseArg(input.value, arg.type);
+                return input.value;
             });
 
-            const value = document.getElementById('deploy-value').value;
-            const gasLimit = document.getElementById('deploy-gas').value;
-            const storageDeposit = document.getElementById('deploy-storage').value;
+            const valuePot = document.getElementById('deploy-value').value;
+            const gasPot = document.getElementById('deploy-gas').value;
+            const storagePot = document.getElementById('deploy-storage').value;
 
             try {
-                const { ContractPromise } = window.polkadotApi;
-                const contract = new ContractPromise(api, contractAbi, null);
-                
-                const { gasRequired, storageDeposit, result } = await contract.tx[constructor.label](
-                    { gasLimit, storageDepositLimit: storageDeposit, value: value * 10**14 },
-                    ...args
-                ).signAndSend(signer);
+                const { data } = await api.query.system.account(signerAddr);
+                const freeBalance = data.free.toBigInt();
+                const totalCostPlanck = BigInt(Math.floor((parseFloat(valuePot) + parseFloat(storagePot)) * 1e14));
+                const maxAllowed = freeBalance * 80n / 100n;
 
-                if (result.isError) {
-                    alert('Deployment failed: ' + result.asError);
+                if (storagePot > 0 && totalCostPlanck > maxAllowed) {
+                    alert(`Storage deposit + value exceeds 80% of signer balance. Max: ${Number(maxAllowed) / 1e14} POT`);
                     return;
                 }
 
-                const address = result.asSuccess.contractAddress.toString();
-                deployedContracts.push({ address, abi: contractAbi, name: contractAbi.spec.name || 'Unnamed' });
+                const dataHex = encodeCallData(api, contractAbi, constructor.selector, constructor.args, argValues);
+                const valuePlanck = BigInt(Math.floor(parseFloat(valuePot) * 1e14)).toString();
+                const gasPlanck = BigInt(Math.floor(parseFloat(gasPot) * 1e12)).toString();
+                const storagePlanck = storagePot > 0 ? BigInt(Math.floor(parseFloat(storagePot) * 1e14)).toString() : null;
+
+                const tx = api.tx.contracts.instantiateWithCode(
+                    valuePlanck,
+                    gasPlanck,
+                    storagePlanck,
+                    contractCode,
+                    dataHex,
+                    null // salt
+                );
+
+                const { events } = await sendAndWait(tx, signer);
+                const instantiated = events.find(e => e.event?.section === 'contracts' && e.event?.method === 'Instantiated');
+                if (!instantiated) {
+                    alert('Deployment transaction included but no Instantiated event found. Check block explorer.');
+                    return;
+                }
+                const address = instantiated.event.data[1].toString();
+                const name = contractAbi.contract?.name || contractAbi.spec?.name || 'Unnamed';
+                deployedContracts.push({ address, abi: contractAbi, name });
                 renderDeployedContracts();
                 alert(`Contract deployed at: ${address}`);
             } catch (e) {
                 alert('Deployment error: ' + e.message);
             }
-        }
-
-        function parseArg(value, type) {
-            const name = type.displayName[0] || type.type;
-            if (name === 'AccountId') return value;
-            if (name === 'Balance' || name === 'u128' || name === 'u64' || name === 'u32') return value;
-            if (name === 'bool') return value === 'true';
-            if (name === 'String') return value;
-            return value;
         }
 
         function renderDeployedContracts() {
@@ -1338,8 +1497,6 @@ mod oracle {
             const methodList = document.getElementById('method-list');
             section.style.display = 'block';
 
-            const { ContractPromise } = window.polkadotApi;
-            const contract = new ContractPromise(api, activeContract.abi, activeContract.address);
             const messages = activeContract.abi.spec.messages;
 
             methodList.innerHTML = messages.map(msg => `
@@ -1362,37 +1519,260 @@ mod oracle {
 
         async function callMethod(label, isWrite) {
             if (!activeContract) return;
-            const { ContractPromise } = window.polkadotApi;
-            const contract = new ContractPromise(api, activeContract.abi, activeContract.address);
             const msg = activeContract.abi.spec.messages.find(m => m.label === label);
-            
-            const args = msg.args.map(arg => {
+            const signerAddr = ALICE.address;
+
+            const argValues = msg.args.map(arg => {
                 const input = document.getElementById(`msg-arg-${label}-${arg.label}`);
-                return parseArg(input.value, arg.type);
+                return input.value;
             });
 
             try {
+                const dataHex = encodeCallData(api, activeContract.abi, msg.selector, msg.args, argValues);
+                const gasPlanck = (0.5 * 10**12).toString();
+                const valuePlanck = msg.payable ? (0.01 * 10**14).toString() : '0';
+
                 if (isWrite) {
-                    const signer = keyring.getPair('Alice');
-                    const result = await contract.tx[label]({ gasLimit: 50000000000 }, ...args).signAndSend(signer);
-                    alert('Transaction submitted');
+                    const signer = keyring.getPair(signerAddr);
+                    const tx = api.tx.contracts.call(
+                        activeContract.address,
+                        valuePlanck,
+                        gasPlanck,
+                        null, // storage deposit limit
+                        dataHex
+                    );
+                    await sendAndWait(tx, signer);
+                    alert('Transaction submitted and included in block');
                 } else {
-                    const result = await contract.query[label](activeContract.address, ...args);
-                    alert('Result: ' + JSON.stringify(result.output));
+                    const result = await dryRunContract(
+                        api,
+                        signerAddr,
+                        activeContract.address,
+                        valuePlanck,
+                        gasPlanck,
+                        null,
+                        dataHex
+                    );
+                    if (result.result.isOk) {
+                        const raw = result.result.asOk.data;
+                        let decoded = raw.toString();
+                        // Attempt basic decode for known primitive return types
+                        if (msg.returnType) {
+                            const typeStr = getPolkadotTypeString(activeContract.abi, msg.returnType);
+                            if (typeStr) {
+                                try {
+                                    const codec = api.registry.createType(typeStr, raw);
+                                    decoded = codec.toString();
+                                } catch (_) { /* keep raw */ }
+                            }
+                        }
+                        alert(`Result: ${decoded}`);
+                    } else {
+                        alert('Read call reverted: ' + result.result.asErr.toString());
+                    }
                 }
             } catch (e) {
                 alert('Call error: ' + e.message);
             }
         }
 
-        // Lazy init API when contracts tab is opened
+        // Lazy init API when contracts or faucet tab is opened
         document.querySelectorAll('.tab').forEach(tab => {
             tab.addEventListener('click', async () => {
-                if (tab.dataset.tab === 'contracts' && !api) {
+                if ((tab.dataset.tab === 'contracts' || tab.dataset.tab === 'faucet') && !api) {
                     await initPolkadotApi();
+                }
+                if (tab.dataset.tab === 'accounts' && api) {
+                    updateAccounts();
                 }
             });
         });
+
+        const FAUCET_AMOUNT_PLANCK = '50000000000000000';
+        const FAUCET_COOLDOWN_MS = 5 * 60 * 60 * 1000;
+        const FAUCET_STORAGE_KEY = 'portaldot_faucet_requests';
+
+        function sendAndWait(tx, pair) {
+            return new Promise((resolve, reject) => {
+                tx.signAndSend(pair, { nonce: -1 }, ({ status, dispatchError, events }) => {
+                    if (dispatchError) {
+                        if (dispatchError.isModule) {
+                            const decoded = api.registry.findMetaError(dispatchError.asModule);
+                            reject(new Error(`${decoded.section}.${decoded.name}`));
+                        } else {
+                            reject(new Error(dispatchError.toString()));
+                        }
+                    } else if (status.isInBlock || status.isFinalized) {
+                        resolve({ status, events });
+                    }
+                }).catch(reject);
+            });
+        }
+
+        // ---- Raw contract extrinsics (no @polkadot/api-contract) ----
+        function hexToU8a(hex) {
+            const str = hex.startsWith('0x') ? hex.slice(2) : hex;
+            if (str.length % 2 !== 0) throw new Error('Invalid hex length');
+            return new Uint8Array(str.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+        }
+        function u8aToHex(bytes) {
+            return '0x' + Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+        function concatU8a(parts) {
+            const total = parts.reduce((s, p) => s + p.length, 0);
+            const out = new Uint8Array(total);
+            let offset = 0;
+            for (const p of parts) { out.set(p, offset); offset += p.length; }
+            return out;
+        }
+        function getPolkadotTypeString(abi, typeRef) {
+            const typeId = typeof typeRef === 'number' ? typeRef : typeRef.type;
+            const entry = abi.types.find(t => t.id === typeId);
+            if (!entry) return null;
+            const def = entry.type.def;
+            if (def.primitive) return def.primitive;
+            if (def.array) {
+                const inner = getPolkadotTypeString(abi, def.array.type);
+                if (!inner) return null;
+                return `[${inner};${def.array.len}]`;
+            }
+            if (def.composite) {
+                const path = entry.type.path?.join('::') || '';
+                if (path.includes('AccountId')) return 'AccountId';
+                if (path.includes('Balance')) return 'u128';
+                return null;
+            }
+            if (def.tuple && def.tuple.length > 0) {
+                const parts = def.tuple.map(t => getPolkadotTypeString(abi, t));
+                if (parts.some(p => !p)) return null;
+                return `(${parts.join(',')})`;
+            }
+            if (def.sequence) {
+                const inner = getPolkadotTypeString(abi, def.sequence.type);
+                if (!inner) return null;
+                if (inner === 'u8') return 'Bytes';
+                return `Vec<${inner}>`;
+            }
+            return null;
+        }
+        function encodeCallData(api, abi, selector, argsMeta, argValues) {
+            const selectorBytes = hexToU8a(selector);
+            const argBytes = argsMeta.map((arg, i) => {
+                const typeStr = getPolkadotTypeString(abi, arg.type);
+                if (!typeStr) throw new Error(`Cannot auto-encode type ${arg.type.displayName?.join('::') || arg.type.type}. Provide raw hex.`);
+                return api.registry.createType(typeStr, argValues[i]).toU8a();
+            });
+            return u8aToHex(concatU8a([selectorBytes, ...argBytes]));
+        }
+        async function dryRunContract(api, origin, address, value, gasLimit, storageDepositLimit, dataHex) {
+            const result = await api.call.contractsApi.call(origin, address, value, gasLimit, storageDepositLimit, dataHex);
+            return result;
+        }
+
+        function checkFaucetCooldown(addr) {
+            const data = JSON.parse(localStorage.getItem(FAUCET_STORAGE_KEY) || '{}');
+            const last = data[addr];
+            if (!last) return { allowed: true };
+            const elapsed = Date.now() - last;
+            if (elapsed >= FAUCET_COOLDOWN_MS) return { allowed: true };
+            const remaining = FAUCET_COOLDOWN_MS - elapsed;
+            const hours = Math.floor(remaining / 3600000);
+            const mins = Math.floor((remaining % 3600000) / 60000);
+            return { allowed: false, hours, mins };
+        }
+
+        function recordFaucetRequest(addr) {
+            const data = JSON.parse(localStorage.getItem(FAUCET_STORAGE_KEY) || '{}');
+            data[addr] = Date.now();
+            localStorage.setItem(FAUCET_STORAGE_KEY, JSON.stringify(data));
+        }
+
+        async function faucetFundAddress() {
+            const addrInput = document.getElementById('faucet-address');
+            const addr = addrInput.value.trim();
+            if (!addr) { showToast('Please enter an address', 'error'); return; }
+
+            const cooldown = checkFaucetCooldown(addr);
+            if (!cooldown.allowed) {
+                showToast(`Rate limited. Try again in ${cooldown.hours}h ${cooldown.mins}m.`, 'error');
+                return;
+            }
+
+            if (!api) {
+                showToast('Initializing API, please try again in a moment...', 'info');
+                await initPolkadotApi();
+                if (!api) return;
+            }
+
+            const btn = document.getElementById('faucet-fund-btn');
+            btn.disabled = true;
+            btn.textContent = 'Funding...';
+
+            try {
+                const alice = keyring.getPair(ALICE.address);
+                const tx = api.tx.balances.transfer(addr, FAUCET_AMOUNT_PLANCK);
+                await sendAndWait(tx, alice);
+
+                recordFaucetRequest(addr);
+
+                document.getElementById('faucet-fund-addr').textContent = addr;
+                document.getElementById('faucet-fund-amount').textContent = '500 POT';
+                document.getElementById('faucet-fund-result').classList.add('visible');
+                addrInput.value = '';
+                showToast('Successfully funded 500 POT!', 'success');
+                updateAccounts();
+            } catch (e) {
+                showToast('Funding failed: ' + e.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Fund Address';
+            }
+        }
+
+        async function faucetGenerateAndFund() {
+            const nameInput = document.getElementById('faucet-name');
+            const name = nameInput.value.trim();
+            if (!name) { showToast('Please enter an account name', 'error'); return; }
+            if (namedAccounts.find(a => a.name === name)) { showToast('An account with this name already exists', 'error'); return; }
+            if (!api) {
+                showToast('Initializing API, please try again in a moment...', 'info');
+                await initPolkadotApi();
+                if (!api) return;
+            }
+
+            const btn = document.getElementById('faucet-generate-btn');
+            btn.disabled = true;
+            btn.textContent = 'Generating...';
+
+            try {
+                if (!window.polkadotUtils) {
+                    throw new Error('Crypto utilities not loaded yet. Refresh and try again.');
+                }
+                const mnemonic = window.polkadotUtils.mnemonicGenerate();
+                const pair = keyring.addFromMnemonic(mnemonic, { name }, 'sr25519');
+                const address = pair.address;
+
+                addNamedAccount(name, address);
+
+                const alice = keyring.getPair(ALICE.address);
+                const tx = api.tx.balances.transfer(address, FAUCET_AMOUNT_PLANCK);
+                await sendAndWait(tx, alice);
+
+                recordFaucetRequest(address);
+
+                document.getElementById('faucet-generate-addr').textContent = address;
+                document.getElementById('faucet-generate-amount').textContent = '500 POT';
+                document.getElementById('faucet-generate-result').classList.add('visible');
+                nameInput.value = '';
+                showToast(`Account "${name}" created and funded with 500 POT!`, 'success');
+                updateAccounts();
+            } catch (e) {
+                showToast('Generation failed: ' + e.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Generate New Address and Fund';
+            }
+        }
     </script>
 </body>
 </html>
