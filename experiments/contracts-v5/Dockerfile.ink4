@@ -1,0 +1,26 @@
+# Dockerfile: ink! v4 contract builder
+# Isolates cargo-contract v3.2.0 + Rust 1.75 to avoid host toolchain conflicts
+
+FROM rust:1.75-slim
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    pkg-config \
+    libssl-dev \
+    cmake \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install cargo-contract v3.2.0 (the last version supporting ink! v4)
+RUN cargo install cargo-contract --version 3.2.0 --locked
+
+# Install wasm target for the default toolchain
+RUN rustup target add wasm32-unknown-unknown
+
+WORKDIR /contract
+
+# Build entrypoint: expects contract source mounted at /contract
+# Usage: docker build -t ink4-builder -f Dockerfile.ink4 .
+#        docker run --rm -v "${PWD}:/contract" ink4-builder cargo contract build --release
+ENTRYPOINT ["cargo", "contract"]
+CMD ["build", "--release"]
