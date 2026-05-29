@@ -55,8 +55,8 @@ mod auction {
             assert!(amount > 0, "Bid must be greater than 0");
 
             self.bidders.insert(caller, &amount);
-            self.bidder_count += 1;
-            self.total_pot += amount;
+            self.bidder_count = self.bidder_count.saturating_add(1);
+            self.total_pot = self.total_pot.saturating_add(amount);
 
             if amount > self.highest_bid {
                 self.highest_bid = amount;
